@@ -1,9 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(npx @dcloudio/uvm@latest create uni-app-vue3 -t vite-ts ai-etf-app)",
-      "Read(//d/coding/ai-etf/**)",
-      "Bash(npx create:*)"
-    ]
-  }
-}
