@@ -13,12 +13,6 @@
       }
     },
     {
-      "path": "pages/etf-detail/index",
-      "style": {
-        "navigationBarTitleText": "ETF详情"
-      }
-    },
-    {
       "path": "pages/settings/index",
       "style": {
         "navigationBarTitleText": "设置"

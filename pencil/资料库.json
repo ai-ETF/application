@@ -1,0 +1,136 @@
+
+{
+  "page_info": {
+    "background_color": "#FFFFFF",
+    "layout": "vertical_linear",
+    "overall_style": "minimalist_clean",
+    "font_family": "serif"
+  },
+  "status_bar": {
+    "left": {
+      "text": "09:08",
+      "color": "#000000",
+      "font_size": 14,
+      "font_weight": "normal",
+      "alignment": "left"
+    },
+    "right": [
+      {
+        "type": "icon",
+        "content": "wifi",
+        "color": "#000000",
+        "size": 16
+      },
+      {
+        "type": "icon",
+        "content": "4G_signal",
+        "color": "#000000",
+        "size": 16
+      },
+      {
+        "type": "text",
+        "content": "4G",
+        "color": "#000000",
+        "font_size": 12,
+        "font_weight": "normal"
+      },
+      {
+        "type": "icon",
+        "content": "4G_signal",
+        "color": "#000000",
+        "size": 16
+      },
+      {
+        "type": "text",
+        "content": "4G",
+        "color": "#000000",
+        "font_size": 12,
+        "font_weight": "normal"
+      },
+      {
+        "type": "icon",
+        "content": "battery",
+        "color": "#000000",
+        "size": 16
+      },
+      {
+        "type": "text",
+        "content": "98",
+        "color": "#000000",
+        "font_size": 12,
+        "font_weight": "normal"
+      },
+      {
+        "type": "icon",
+        "content": "charging",
+        "color": "#000000",
+        "size": 16
+      }
+    ],
+    "height": 40
+  },
+  "top_navigation": {
+    "left": {
+      "type": "icon",
+      "content": "back_arrow",
+      "color": "#332820",
+      "size": 24,
+      "alignment": "left",
+      "margin_left": 16
+    },
+    "center": {
+      "text": "资料库",
+      "color": "#332820",
+      "font_size": 24,
+      "font_weight": "bold",
+      "alignment": "center"
+    },
+    "divider": {
+      "color": "#E0E0E0",
+      "height": 1,
+      "margin_top": 12
+    },
+    "height": 60
+  },
+  "empty_state_section": {
+    "alignment": "center",
+    "margin_top": 120,
+    "icon": {
+      "content": "document",
+      "color": "#666666",
+      "size": 32,
+      "container": {
+        "shape": "circle",
+        "background_color": "#F0F0F0",
+        "size": 80
+      }
+    },
+    "text": {
+      "content": "欢迎上传文档、图片等格式文件，还可以选中自选中的ETF，供本组下的回答参考",
+      "color": "#332820",
+      "font_size": 18,
+      "font_weight": "normal",
+      "line_height": 1.5,
+      "margin_top": 24,
+      "text_align": "center"
+    },
+    "button": {
+      "content": "添加资料",
+      "icon": {
+        "content": "add_document",
+        "color": "#FFFFFF",
+        "size": 20,
+        "margin_right": 8
+      },
+      "text_color": "#FFFFFF",
+      "font_size": 18,
+      "font_weight": "medium",
+      "background_color": "#2D1E16",
+      "border_radius": 12,
+      "width": 200,
+      "height": 56,
+      "margin_top": 32,
+      "alignment": "center"
+    }
+  }
+}

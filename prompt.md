@@ -1,0 +1,27 @@
+请先阅读 @D:\coding\ai-etf\uni-app\uni-app-技术选型.md 根据我提供的 Pencil(MCP) 设计稿，实现页面：
+
+- `pages/index/index` ("D:\coding\ai-etf\uni-app\pencil\AIInvestmentChat.pen")
+- `pages/watchlist/index` (关注：D:\coding\ai-etf\uni-app\pencil\followPage.pen)(持仓：D:\coding\ai-etf\uni-app\pencil\positionCheck.pen)
+- `pages/settings/index` (D:\coding\ai-etf\uni-app\pencil\center.pen)
+
+技术要求：
+
+1. 请使用 @frontend-design skill 进行开发。
+2. 参考设计稿页面结构、布局、交互、样式。
+3. 代码必须包含**详细注释**，关键逻辑、函数、组件用途清晰说明。
+4. 代码需附带**详细调试信息**，便于后续排查问题与二次开发。
+5. 代码结构清晰、模块化、可维护，符合前端工程规范。
+
+注意：
+
+- 严格遵循**项目标准目录结构**，页面、组件、工具、样式、接口等分类存放，不随意乱放文件。
+- 采用**组件化开发思维**，公共模块、复用模块抽离为独立组件，避免冗余代码。
+- 代码风格统一，遵循 **ESLint 规范**，缩进、命名、换行保持一致。
+- 变量、函数、组件命名遵循 **语义化命名规范**，禁止无意义命名。
+- 逻辑与视图分离，**业务逻辑封装成 hooks 或工具函数**，不写在渲染层。
+- 接口请求统一管理，统一封装请求与异常处理。
+- 增加必要的**类型定义（TypeScript 类型 / 接口）**，提高代码可读性与稳定性。
+- 关键逻辑、复杂判断、特殊交互必须添加**详细注释**。
+- 输出可直接运行的完整代码结构，包含入口文件、组件引入、路由配置（如需要）。
+
+请基于以上要求，完整实现该页面并输出可直接运行的代码。

@@ -1,0 +1,230 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "frame",
+      "id": "JiYAB",
+      "x": 12,
+      "y": 12,
+      "name": "Menu Button",
+      "width": 36,
+      "height": 36,
+      "fill": "#000000",
+      "cornerRadius": 8
+    },
+    {
+      "type": "frame",
+      "id": "RCrWs",
+      "x": 230,
+      "y": 10,
+      "name": "Right Button BG",
+      "width": 118,
+      "height": 40,
+      "fill": "#FFFFFF",
+      "cornerRadius": 20
+    },
+    {
+      "type": "frame",
+      "id": "WvadE",
+      "x": -19,
+      "y": 22,
+      "name": "Background",
+      "width": 375,
+      "height": 812,
+      "fill": "#F9F6F0"
+    },
+    {
+      "type": "frame",
+      "id": "V4mdG",
+      "x": 12,
+      "y": 760,
+      "name": "Bottom Nav Background",
+      "width": 363,
+      "height": 52,
+      "fill": "rgba(255,255,255,0.8)"
+    },
+    {
+      "type": "frame",
+      "id": "9V4fI",
+      "x": 12,
+      "y": 720,
+      "name": "Input Background",
+      "width": 351,
+      "height": 48,
+      "fill": "#FFFFFF",
+      "cornerRadius": 24
+    },
+    {
+      "type": "text",
+      "id": "mbDKj",
+      "x": 45,
+      "y": 760,
+      "name": "searchIcon",
+      "fill": "#000000",
+      "content": "🔍",
+      "fontFamily": "Inter",
+      "fontSize": 20,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "frame",
+      "id": "FI8o3",
+      "x": 0,
+      "y": 0,
+      "name": "Top Bar Background",
+      "width": 375,
+      "height": 60,
+      "fill": "rgba(255,255,255,0.8)"
+    },
+    {
+      "type": "text",
+      "id": "kmacN",
+      "x": 56,
+      "y": 14,
+      "name": "appName",
+      "content": "小E",
+      "fontFamily": "Inter",
+      "fontSize": 18,
+      "fontWeight": "bold"
+    },
+    {
+      "type": "text",
+      "id": "ksUkE",
+      "x": 56,
+      "y": 34,
+      "name": "subTitle",
+      "fill": "#666666",
+      "content": "您的ETF投资助手",
+      "fontFamily": "Inter",
+      "fontSize": 13,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "qn9Mq",
+      "x": 290,
+      "y": 18,
+      "name": "phoneIcon",
+      "content": "📞",
+      "fontFamily": "Inter",
+      "fontSize": 20,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "8s3i5",
+      "x": 325,
+      "y": 18,
+      "name": "shareIcon",
+      "content": "⤴️",
+      "fontFamily": "Inter",
+      "fontSize": 20,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "XjAay",
+      "x": 24,
+      "y": 732,
+      "name": "voiceIcon",
+      "content": "🎤",
+      "fontFamily": "Inter",
+      "fontSize": 18,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "RLVIQ",
+      "x": 56,
+      "y": 734,
+      "name": "inputPlaceholder",
+      "fill": "#999999",
+      "content": "发消息或按住说话...",
+      "fontFamily": "Inter",
+      "fontSize": 15,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "izvZd",
+      "x": 300,
+      "y": 732,
+      "name": "plusIcon",
+      "content": "➕",
+      "fontFamily": "Inter",
+      "fontSize": 18,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "M0YhP",
+      "x": 335,
+      "y": 732,
+      "name": "sendIcon",
+      "content": "➤",
+      "fontFamily": "Inter",
+      "fontSize": 18,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "C1MAE",
+      "x": 35,
+      "y": 790,
+      "name": "searchLabel",
+      "content": "问小E",
+      "textAlign": "center",
+      "fontFamily": "Inter",
+      "fontSize": 12,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "xbcfF",
+      "x": 165,
+      "y": 760,
+      "name": "infinityIcon",
+      "fill": "#999999",
+      "content": "∞",
+      "fontFamily": "Inter",
+      "fontSize": 20,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "KIphe",
+      "x": 160,
+      "y": 790,
+      "name": "infinityLabel",
+      "content": "自选",
+      "textAlign": "center",
+      "fontFamily": "Inter",
+      "fontSize": 12,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "BmA5Y",
+      "x": 285,
+      "y": 760,
+      "name": "userIcon",
+      "fill": "#999999",
+      "content": "👤",
+      "fontFamily": "Inter",
+      "fontSize": 20,
+      "fontWeight": "normal"
+    },
+    {
+      "type": "text",
+      "id": "CJNlT",
+      "x": 285,
+      "y": 790,
+      "name": "userLabel",
+      "content": "我的",
+      "textAlign": "center",
+      "fontFamily": "Inter",
+      "fontSize": 12,
+      "fontWeight": "normal"
+    }
+  ]
+}

@@ -1,0 +1,768 @@
+{
+  "version": "2.8",
+  "children": [
+    {
+      "type": "frame",
+      "id": "DEBgE",
+      "x": -1,
+      "y": 10,
+      "name": "Mobile Canvas",
+      "width": 390,
+      "height": 844,
+      "fill": "#F9F6F0",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "Pahwl",
+          "name": "Page_Main",
+          "width": "fill_container",
+          "height": "fill_container",
+          "layout": "vertical",
+          "gap": 16,
+          "padding": [
+            0,
+            16
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "jFOxn",
+              "name": "Status_Bar",
+              "width": "fill_container",
+              "height": 40,
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "E37S0",
+                  "name": "timeText",
+                  "fill": "#000000",
+                  "content": "09:08",
+                  "fontFamily": "Inter",
+                  "fontSize": 14,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "U9NfE",
+                  "name": "statusRight",
+                  "gap": 8,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "3Xflu",
+                      "name": "signalIcon",
+                      "fill": "#000000",
+                      "content": "📶",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Hhid4",
+                      "name": "signalText",
+                      "fill": "#000000",
+                      "content": "4G",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "5OR10",
+                      "name": "batteryIcon",
+                      "fill": "#000000",
+                      "content": "🔋",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y1WC7",
+                      "name": "batteryText",
+                      "fill": "#000000",
+                      "content": "98",
+                      "fontFamily": "Inter",
+                      "fontSize": 12,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "u7jfO",
+              "name": "Top_Tab",
+              "width": "fill_container",
+              "height": 48,
+              "fill": "#F9F6F0",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "KbbZZ",
+                  "name": "rightTab",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "GRYAz",
+                      "name": "rightTabText",
+                      "fill": "#2D1E16",
+                      "content": "关注",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "w7kii",
+                      "name": "rightTabIndicator",
+                      "width": 24,
+                      "height": 2,
+                      "fill": "#2D1E16"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "JwB0U",
+                  "name": "leftTab",
+                  "width": "fill_container",
+                  "layout": "vertical",
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8VDaw",
+                      "name": "leftTabText",
+                      "fill": "#999999",
+                      "content": "持仓",
+                      "fontFamily": "Inter",
+                      "fontSize": 16,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "5q7Vz",
+                      "name": "leftTabIndicator",
+                      "width": 24,
+                      "height": 2,
+                      "fill": "transparent"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "2x0PC",
+              "name": "searchSection",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 12,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "J6FvE",
+                  "name": "searchContainer",
+                  "width": "fill_container",
+                  "height": 44,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 22,
+                  "gap": 8,
+                  "padding": [
+                    0,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "XShRI",
+                      "name": "searchPlaceholder",
+                      "fill": "#999999",
+                      "textGrowth": "fixed-width",
+                      "width": 299,
+                      "content": "搜索 ETF 名称或代码",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Rljwu",
+                      "name": "searchIcon",
+                      "fill": "#999999",
+                      "content": "🔍",
+                      "fontFamily": "Inter",
+                      "fontSize": 20,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "fuS1L",
+              "name": "headerContainer",
+              "width": "fill_container",
+              "gap": 12,
+              "padding": [
+                0,
+                12
+              ],
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "c5yMg",
+                  "name": "headerName",
+                  "fill": "#999999",
+                  "textGrowth": "fixed-width",
+                  "width": 106,
+                  "content": "标的",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "ftBT1",
+                  "name": "headerChart",
+                  "fill": "#999999",
+                  "content": "走势",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "77DME",
+                  "name": "headerPrice",
+                  "fill": "#999999",
+                  "content": "最新价",
+                  "textAlign": "right",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "FFW0o",
+                  "name": "headerYtd",
+                  "fill": "#999999",
+                  "content": "年初至今",
+                  "textAlign": "right",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "1dds7",
+              "name": "watchListContainer",
+              "width": "fill_container",
+              "height": 508,
+              "layout": "vertical",
+              "gap": 8,
+              "padding": [
+                8,
+                0,
+                0,
+                0
+              ],
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "BE5pA",
+                  "name": "watchItem1",
+                  "width": "fill_container",
+                  "height": 72,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "XxNXH",
+                      "name": "nameBlock1",
+                      "width": 120,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "HCCIY",
+                          "name": "etfName1",
+                          "fill": "#2D1E16",
+                          "content": "沪深300ETF",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "y4fvF",
+                          "name": "marketCode1",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "azPjy",
+                              "name": "marketLabel1",
+                              "fill": "#EFEAE2",
+                              "cornerRadius": 4,
+                              "padding": [
+                                2,
+                                6
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "eBnEr",
+                                  "name": "marketText1",
+                                  "fill": "#000000ff",
+                                  "textGrowth": "fixed-width",
+                                  "width": 10,
+                                  "content": "沪",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "NiwTx",
+                              "name": "etfCode1",
+                              "fill": "#999999",
+                              "content": "510300",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Ee5iR",
+                      "name": "miniChart1",
+                      "width": 80,
+                      "height": 40,
+                      "fill": "transparent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "Dsdr4",
+                      "name": "lastPrice1",
+                      "width": 60,
+                      "layout": "vertical",
+                      "alignItems": "end",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "EEWx3",
+                          "name": "priceText1",
+                          "fill": "#2D1E16",
+                          "content": "5.128",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "muju1",
+                      "name": "ytdChange1",
+                      "width": 80,
+                      "layout": "vertical",
+                      "alignItems": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "6J9so",
+                          "name": "ytdLabel1",
+                          "fill": "#FDECEC",
+                          "cornerRadius": 12,
+                          "padding": [
+                            4,
+                            8
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "hEO3K",
+                              "name": "ytdText1",
+                              "fill": "#D94C4C",
+                              "content": "+12.45%",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "UCUQU",
+                  "name": "watchItem2",
+                  "width": "fill_container",
+                  "height": 72,
+                  "fill": "#FFFFFF",
+                  "cornerRadius": 12,
+                  "gap": 12,
+                  "padding": [
+                    0,
+                    12
+                  ],
+                  "justifyContent": "space_between",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "160ud",
+                      "name": "nameBlock2",
+                      "width": 120,
+                      "layout": "vertical",
+                      "gap": 4,
+                      "justifyContent": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "TXORm",
+                          "name": "etfName2",
+                          "fill": "#2D1E16",
+                          "content": "中证500ETF",
+                          "fontFamily": "Inter",
+                          "fontSize": 14,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "frame",
+                          "id": "RmvTZ",
+                          "name": "marketCode2",
+                          "gap": 4,
+                          "children": [
+                            {
+                              "type": "frame",
+                              "id": "njdOX",
+                              "name": "marketLabel2",
+                              "fill": "#EFEAE2",
+                              "cornerRadius": 4,
+                              "padding": [
+                                2,
+                                6
+                              ],
+                              "children": [
+                                {
+                                  "type": "text",
+                                  "id": "O9kt0",
+                                  "name": "marketText2",
+                                  "fill": "#000000ff",
+                                  "content": "深",
+                                  "fontFamily": "Inter",
+                                  "fontSize": 10,
+                                  "fontWeight": "normal"
+                                }
+                              ]
+                            },
+                            {
+                              "type": "text",
+                              "id": "4qskl",
+                              "name": "etfCode2",
+                              "fill": "#999999",
+                              "content": "510500",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "normal"
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "tCIg6",
+                      "name": "miniChart2",
+                      "width": 80,
+                      "height": 40,
+                      "fill": "transparent"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "SXoDJ",
+                      "name": "lastPrice2",
+                      "width": 60,
+                      "layout": "vertical",
+                      "alignItems": "end",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "1azPw",
+                          "name": "priceText2",
+                          "fill": "#2D1E16",
+                          "content": "6.842",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "EUN4w",
+                      "name": "ytdChange2",
+                      "width": 80,
+                      "layout": "vertical",
+                      "alignItems": "end",
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "FfTel",
+                          "name": "ytdLabel2",
+                          "fill": "#FDECEC",
+                          "cornerRadius": 12,
+                          "padding": [
+                            4,
+                            8
+                          ],
+                          "children": [
+                            {
+                              "type": "text",
+                              "id": "dlEat",
+                              "name": "ytdText2",
+                              "fill": "#D94C4C",
+                              "content": "+8.92%",
+                              "fontFamily": "Inter",
+                              "fontSize": 12,
+                              "fontWeight": "600"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "frame",
+      "id": "RzvvL",
+      "x": -1,
+      "y": 753,
+      "name": "NavBar",
+      "width": 390,
+      "height": 101,
+      "fill": "#F9F6F0",
+      "justifyContent": "space_around",
+      "alignItems": "center",
+      "children": [
+        {
+          "type": "frame",
+          "id": "al1sC",
+          "name": "askSection",
+          "layout": "vertical",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "Yw0s2",
+              "name": "askIcon",
+              "width": 24,
+              "height": 24,
+              "fill": "transparent",
+              "cornerRadius": 20,
+              "layout": "none",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "K5SUG",
+                  "x": 2.375,
+                  "y": 4,
+                  "name": "searchIcon",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "search",
+                  "iconFontFamily": "lucide",
+                  "fill": "#999999"
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "pwbrz",
+              "name": "askText",
+              "fill": "#999999",
+              "content": "问小E",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "WJYGN",
+          "name": "askSection",
+          "layout": "vertical",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "MtGFE",
+              "name": "favSection",
+              "width": 39,
+              "height": 40,
+              "layout": "vertical",
+              "gap": 8,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "iec0d",
+                  "name": "favIconBg",
+                  "width": 40,
+                  "height": 40,
+                  "fill": "#E8E8E8",
+                  "cornerRadius": 20,
+                  "layout": "none",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "K0TZL",
+                      "x": 8.5,
+                      "y": 8.5,
+                      "name": "favIcon",
+                      "width": 24,
+                      "height": 24,
+                      "iconFontName": "bookmark",
+                      "iconFontFamily": "lucide",
+                      "fill": "#333333"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "text",
+              "id": "adLbs",
+              "name": "askText",
+              "fill": "#999999",
+              "content": "自选",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "tiFVy",
+          "name": "profileSection1",
+          "layout": "vertical",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "VpwBt",
+              "name": "profileIcon1",
+              "width": 24,
+              "height": 24,
+              "iconFontName": "thermometer",
+              "iconFontFamily": "lucide",
+              "fill": "#999999"
+            },
+            {
+              "type": "text",
+              "id": "9PCDI",
+              "name": "profileText1",
+              "fill": "#999999",
+              "content": "温度",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "7ky7L",
+          "name": "profileSection2",
+          "layout": "vertical",
+          "gap": 8,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "icon_font",
+              "id": "fsXAO",
+              "name": "profileIcon2",
+              "width": 24,
+              "height": 24,
+              "iconFontName": "users",
+              "iconFontFamily": "lucide",
+              "fill": "#999999"
+            },
+            {
+              "type": "text",
+              "id": "mfnQx",
+              "name": "profileText2",
+              "fill": "#999999",
+              "content": "我的",
+              "textAlign": "center",
+              "fontFamily": "Inter",
+              "fontSize": 12,
+              "fontWeight": "normal"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "themes": {
+    "Theme": [
+      "Default",
+      "Variant-1"
+    ],
+    "Theme-1": [
+      "Default"
+    ]
+  }
+}
