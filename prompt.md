@@ -1,12 +1,12 @@
-请先阅读 @D:\coding\ai-etf\uni-app\uni-app-技术选型.md 根据我提供的 Pencil(MCP) 设计稿，实现页面：
+请先阅读 @uni-app-技术选型.md 根据我提供的 Pencil(MCP) 设计稿，实现页面：
 
-- `pages/index/index` ("D:\coding\ai-etf\uni-app\pencil\AIInvestmentChat.pen")
-- `pages/watchlist/index` (关注：D:\coding\ai-etf\uni-app\pencil\followPage.pen)(持仓：D:\coding\ai-etf\uni-app\pencil\positionCheck.pen)
-- `pages/settings/index` (D:\coding\ai-etf\uni-app\pencil\center.pen)
+- `pages/index/index` ("pencil\AIInvestmentChat.pen")
+- `pages/watchlist/index` (关注：pencil\followPage.pen)(持仓：pencil\positionCheck.pen)
+- `pages/settings/index` (pencil\center.pen)
 
 技术要求：
 
-1. 请使用 @frontend-design skill 进行开发。
+1. 请使用 @frontend-design skill 进行开发，先确定项目整体风格。
 2. 参考设计稿页面结构、布局、交互、样式。
 3. 代码必须包含**详细注释**，关键逻辑、函数、组件用途清晰说明。
 4. 代码需附带**详细调试信息**，便于后续排查问题与二次开发。
