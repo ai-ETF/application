@@ -1,0 +1,118 @@
+/**
+ * ============================================
+ * SCSS 混入（Mixins）
+ * ============================================
+ * 常用布局、样式混入，减少重复代码
+ */
+
+/**
+ * Flex 布局混入
+ * @description 快速设置 flex 布局属性
+ * @param {string} $direction - 主轴方向（row | column）
+ * @param {string} $justify - 主轴对齐方式
+ * @param {string} $align - 交叉轴对齐方式
+ */
+@mixin flex($direction: row, $justify: flex-start, $align: stretch) {
+  display: flex;
+  flex-direction: $direction;
+  justify-content: $justify;
+  align-items: $align;
+}
+
+/**
+ * 水平居中布局
+ */
+@mixin flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/**
+ * 水平垂直居中（绝对定位方式）
+ */
+@mixin absolute-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+/**
+ * 文字溢出省略号
+ * @param {number} $lines - 显示行数，默认单行
+ */
+@mixin text-ellipsis($lines: 1) {
+  @if $lines == 1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  } @else {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: $lines;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+/**
+ * 安全区域内边距
+ * @description 适配 iPhone X 等有底部安全区域的设备
+ */
+@mixin safe-area-bottom($extra: 0rpx) {
+  padding-bottom: calc(#{$extra} + env(safe-area-inset-bottom));
+}
+
+/**
+ * 卡片样式
+ * @param {number} $radius - 圆角大小
+ * @param {color} $bg - 背景色
+ * @param {color} $border - 边框色
+ */
+@mixin card($radius: 32rpx, $bg: $color-bg-card, $border: $color-border-card) {
+  background-color: $bg;
+  border-radius: $radius;
+  border: 2rpx solid $border;
+}
+
+/**
+ * 胶囊按钮样式
+ * @param {number} $height - 按钮高度
+ * @param {color} $bg - 背景色
+ */
+@mixin pill-button($height: $input-height, $bg: $color-bg-secondary) {
+  display: flex;
+  align-items: center;
+  height: $height;
+  background-color: $bg;
+  border-radius: $height / 2;
+}
+
+/**
+ * 分割线
+ * @param {color} $color - 分割线颜色
+ * @param {number} $margin - 左右间距
+ */
+@mixin divider($color: $color-border-light, $margin: 0) {
+  height: 2rpx;
+  background-color: $color;
+  @if $margin != 0 {
+    margin-left: $margin;
+    margin-right: $margin;
+  }
+}
+
+/**
+ * 涨跌颜色
+ * @param {string} $type - profit(涨) 或 loss(跌)
+ */
+@mixin change-color($type) {
+  @if $type == 'profit' {
+    color: $color-profit;
+    background-color: $color-profit-bg;
+  } @else {
+    color: $color-loss;
+    background-color: $color-loss-bg;
+  }
+}

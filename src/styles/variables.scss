@@ -1,0 +1,169 @@
+/**
+ * ============================================
+ * AI-ETF App 全局样式变量
+ * ============================================
+ * 基于设计稿提取的颜色、字体、间距等设计令牌
+ * 所有页面和组件应优先使用这些变量，确保视觉一致性
+ */
+
+// ==================== 颜色系统 ====================
+
+/**
+ * 主题背景色 - 温暖米色调
+ * @description 设计稿主背景色，营造舒适的视觉体验
+ */
+$color-bg-primary: #F9F6F0;
+$color-bg-secondary: #FFFFFF;
+$color-bg-card: #FFFFFF;
+
+/**
+ * 文字颜色层级
+ * @description 从深到浅的文字颜色，用于不同层级的文本
+ */
+$color-text-primary: #2D1E16;      // 主要文字 - 深棕色
+$color-text-secondary: #666666;   // 次要文字 - 中灰色
+$color-text-tertiary: #999999;    // 辅助文字 - 浅灰色
+$color-text-black: #000000;       // 纯黑色 - 用于状态栏等
+$color-text-white: #FFFFFF;       // 白色
+
+/**
+ * 功能性颜色
+ * @description 用于特定语义的颜色
+ */
+$color-accent: #C07A4A;           // 强调色 - 温暖棕色
+$color-profit: #FF4444;           // 盈利颜色 - 红色（涨）
+$color-loss: #00AA44;             // 亏损颜色 - 绿色（跌）
+$color-profit-bg: #FDECEC;        // 盈利背景色
+$color-loss-bg: #E8F8EE;          // 亏损背景色
+
+/**
+ * 边框和分割线颜色
+ */
+$color-border-light: #E0E0E0;     // 浅色边框
+$color-border-card: #E8E3DA;      // 卡片边框
+$color-border-input: #E8E8E8;     // 输入框边框
+
+/**
+ * 图标颜色
+ */
+$color-icon-primary: #333333;     // 主图标颜色
+$color-icon-secondary: #999999;   // 次图标颜色
+$color-icon-active: #2D1E16;      // 激活状态图标
+
+// ==================== 字体系统 ====================
+
+/**
+ * 字体家族
+ * @description 主字体使用 Inter，确保跨平台显示一致
+ */
+$font-family-primary: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+/**
+ * 字体大小层级
+ * @description 从小到大的字体尺寸，使用 rpx 单位适配多屏幕
+ */
+$font-size-xs: 20rpx;      // 10px - 极小文字
+$font-size-sm: 24rpx;      // 12px - 小号文字
+$font-size-base: 28rpx;    // 14px - 基础文字
+$font-size-md: 30rpx;      // 15px - 中等文字
+$font-size-lg: 32rpx;      // 16px - 大号文字
+$font-size-xl: 36rpx;      // 18px - 特大文字
+$font-size-2xl: 40rpx;     // 20px - 标题文字
+$font-size-3xl: 48rpx;     // 24px - 大标题
+$font-size-4xl: 72rpx;     // 36px - 超大标题（金额）
+
+/**
+ * 字重
+ */
+$font-weight-normal: 400;
+$font-weight-medium: 500;
+$font-weight-semibold: 600;
+$font-weight-bold: 700;
+
+// ==================== 间距系统 ====================
+
+/**
+ * 间距层级
+ * @description 统一的间距规范，使用 rpx 单位
+ */
+$spacing-xs: 8rpx;         // 4px
+$spacing-sm: 16rpx;        // 8px
+$spacing-md: 24rpx;        // 12px
+$spacing-base: 32rpx;      // 16px
+$spacing-lg: 40rpx;        // 20px
+$spacing-xl: 48rpx;        // 24px
+$spacing-2xl: 64rpx;       // 32px
+
+// ==================== 圆角系统 ====================
+
+/**
+ * 圆角层级
+ */
+$radius-sm: 8rpx;          // 4px - 小圆角
+$radius-base: 16rpx;       // 8px - 基础圆角
+$radius-md: 24rpx;         // 12px - 中等圆角
+$radius-lg: 32rpx;         // 16px - 大圆角
+$radius-xl: 40rpx;         // 20px - 超大圆角
+$radius-full: 80rpx;       // 40px - 完全圆角（胶囊按钮）
+$radius-circle: 50%;       // 圆形
+
+// ==================== 尺寸系统 ====================
+
+/**
+ * 页面尺寸
+ */
+$page-width: 750rpx;       // 页面宽度（基于 375pt 设计稿）
+$status-bar-height: 88rpx; // 状态栏高度（40pt）
+$nav-bar-height: 100rpx;   // 底部导航栏高度
+
+/**
+ * 卡片尺寸
+ */
+$card-padding: 40rpx;      // 卡片内边距
+$card-radius: 32rpx;       // 卡片圆角
+
+/**
+ * 输入框尺寸
+ */
+$input-height: 112rpx;     // 输入框高度（56pt）
+$input-radius: 80rpx;      // 输入框圆角（40pt）
+
+/**
+ * 按钮尺寸
+ */
+$btn-height-sm: 64rpx;     // 小按钮高度
+$btn-height-base: 88rpx;   // 基础按钮高度
+$btn-height-lg: 112rpx;    // 大按钮高度
+$btn-icon-size: 120rpx;    // 图标按钮尺寸（60pt）
+
+// ==================== 阴影系统 ====================
+
+/**
+ * 阴影效果
+ */
+$shadow-sm: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+$shadow-base: 0 4rpx 16rpx rgba(0, 0, 0, 0.08);
+$shadow-lg: 0 8rpx 32rpx rgba(0, 0, 0, 0.12);
+
+// ==================== 动画系统 ====================
+
+/**
+ * 过渡动画时长
+ */
+$transition-fast: 0.15s;
+$transition-base: 0.25s;
+$transition-slow: 0.35s;
+
+/**
+ * 缓动函数
+ */
+$ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+$ease-out: cubic-bezier(0.0, 0, 0.2, 1);
+$ease-in: cubic-bezier(0.4, 0, 1, 1);
+
+// ==================== Z-Index 层级 ====================
+
+$z-index-dropdown: 100;
+$z-index-modal: 200;
+$z-index-toast: 300;
+$z-index-tooltip: 400;
