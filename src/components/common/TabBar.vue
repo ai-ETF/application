@@ -24,7 +24,7 @@
       @tap="handleTabClick('chat')"
     >
       <view class="tab-icon" :class="{ 'tab-icon--active': activeKey === 'chat' }">
-        <text class="icon-emoji">🔍</text>
+        <SvgIcon name="search" size="40rpx" :color="activeKey === 'chat' ? 'active' : 'secondary'" />
       </view>
       <text class="tab-label">问小E</text>
     </view>
@@ -36,7 +36,7 @@
       @tap="handleTabClick('watchlist')"
     >
       <view class="tab-icon-bg" :class="{ 'tab-icon-bg--active': activeKey === 'watchlist' }">
-        <text class="icon-emoji">📑</text>
+        <SvgIcon name="bookmark" size="40rpx" :color="activeKey === 'watchlist' ? 'active' : 'secondary'" />
       </view>
       <text class="tab-label">自选</text>
     </view>
@@ -48,7 +48,7 @@
       @tap="handleTabClick('temperature')"
     >
       <view class="tab-icon" :class="{ 'tab-icon--active': activeKey === 'temperature' }">
-        <text class="icon-emoji">🌡️</text>
+        <SvgIcon name="thermometer" size="40rpx" :color="activeKey === 'temperature' ? 'active' : 'secondary'" />
       </view>
       <text class="tab-label">温度</text>
     </view>
@@ -60,7 +60,7 @@
       @tap="handleTabClick('settings')"
     >
       <view class="tab-icon-bg" :class="{ 'tab-icon-bg--active': activeKey === 'settings' }">
-        <text class="icon-emoji">👤</text>
+        <SvgIcon name="user" size="40rpx" :color="activeKey === 'settings' ? 'active' : 'secondary'" />
       </view>
       <text class="tab-label">我的</text>
     </view>
@@ -69,6 +69,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import SvgIcon from './SvgIcon.vue';
 import type { ActiveTab } from '@/types/models.d';
 
 /**
@@ -141,7 +142,7 @@ function handleTabClick(tab: ActiveTab) {
   align-items: center;
   width: 100%;
   height: 200rpx;
-  background-color: #F9F6F0;
+  background-color: $color-bg-primary;
   /* 适配 iPhone X 等有底部安全区域的设备 */
   padding-bottom: env(safe-area-inset-bottom);
 }
@@ -151,10 +152,10 @@ function handleTabClick(tab: ActiveTab) {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16rpx;
-  padding: 16rpx 32rpx;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-base;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all $transition-fast ease;
 
   &:active {
     opacity: 0.7;
@@ -164,17 +165,17 @@ function handleTabClick(tab: ActiveTab) {
 
 /* Tab 标签文字 */
 .tab-label {
-  font-size: 24rpx;
-  font-weight: 400;
-  color: #999999;
+  font-size: $font-size-sm;
+  font-weight: $font-weight-normal;
+  color: $color-text-tertiary;
   text-align: center;
 }
 
 /* 激活状态下的 Tab 标签 */
 .tab-item--active {
   .tab-label {
-    color: #000000;
-    font-weight: 500;
+    color: $color-text-primary;
+    font-weight: $font-weight-medium;
   }
 }
 
@@ -195,18 +196,12 @@ function handleTabClick(tab: ActiveTab) {
   justify-content: center;
   width: 80rpx;
   height: 80rpx;
-  border-radius: 50%;
+  border-radius: $radius-circle;
   background-color: transparent;
 }
 
 /* 激活状态下的图标背景 */
 .tab-icon-bg--active {
-  background-color: #E8E8E8;
-}
-
-/* 图标 Emoji */
-.icon-emoji {
-  font-size: 40rpx;
-  line-height: 1;
+  background-color: $color-brand-bg;
 }
 </style>
