@@ -1,0 +1,1258 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI-ETF 设计系统 (暖色调版)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* 背景色 - 暖米色调 */
+      --color-bg: #F9F6F0;
+      --color-surface: #FFFFFF;
+
+      /* 品牌色 - 暖调琥珀棕 */
+      --color-primary: #B45309;          /* Amber 700 - 温暖琥珀色 */
+      --color-primary-hover: #92400E;    /* Amber 800 - 悬浮状态 */
+      --color-primary-light: #FBBF24;    /* Amber 400 - 浅色辅助 */
+
+      /* 文本色 - 暖调深色 */
+      --color-text-primary: #2D1E16;     /* 深棕色 - 温暖的深色 */
+      --color-text-secondary: #78716C;   /* Stone 500 - 暖灰色 */
+      --color-text-tertiary: #A8A29E;    /* Stone 400 - 辅助暖灰 */
+
+      /* 边框色 - 暖调边框 */
+      --color-border: #E0D8CE;           /* 暖调浅棕 */
+      --color-border-light: #F5F0EB;     /* 更浅的暖边框 */
+
+      /* 语义色 - 符合中国市场惯例 */
+      --color-up: #DC2626;               /* Red 600 - 红涨 */
+      --color-up-bg: #FEF2F2;            /* 红色背景 */
+      --color-down: #16A34A;             /* Green 600 - 绿跌 */
+      --color-down-bg: #F0FDF4;          /* 绿色背景 */
+      --color-warning: #D97706;          /* Amber 600 - 加深警告色 */
+      --color-warning-bg: #FFFBEB;       /* 警告背景 */
+
+      /* 字号 */
+      --font-2xl: 32px;
+      --font-xl: 24px;
+      --font-lg: 20px;
+      --font-base: 16px;
+      --font-sm: 14px;
+      --font-xs: 12px;
+
+      /* 圆角 */
+      --radius-xs: 2px;
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-lg: 24px;
+      --radius-full: 9999px;
+
+      /* 阴影 - 暖调阴影 */
+      --shadow-sm: 0 1px 2px 0 rgba(45, 30, 22, 0.06);
+      --shadow-md: 0 4px 6px -1px rgba(45, 30, 22, 0.10), 0 2px 4px -2px rgba(45, 30, 22, 0.05);
+      --shadow-lg: 0 10px 15px -3px rgba(45, 30, 22, 0.10), 0 4px 6px -4px rgba(45, 30, 22, 0.05);
+      --shadow-inner: inset 0 2px 4px 0 rgba(45, 30, 22, 0.05);
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    /* 标题样式 */
+    .page-title {
+      font-size: var(--font-2xl);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .page-subtitle {
+      font-size: var(--font-base);
+      color: var(--color-text-secondary);
+      margin-bottom: 48px;
+    }
+
+    .update-note {
+      background: linear-gradient(135deg, #FEF3C7 0%, #FDE68A 100%);
+      border: 1px solid var(--color-warning);
+      border-radius: var(--radius-md);
+      padding: 16px 24px;
+      margin-bottom: 48px;
+      font-size: var(--font-base);
+      color: #92400E;
+    }
+
+    .update-note strong {
+      color: #B45309;
+    }
+
+    .section {
+      margin-bottom: 48px;
+    }
+
+    .section-title {
+      font-size: var(--font-xl);
+      font-weight: 600;
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .subsection-title {
+      font-size: var(--font-lg);
+      font-weight: 500;
+      margin-bottom: 16px;
+      color: var(--color-text-primary);
+    }
+
+    /* 卡片样式 */
+    .card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+      margin-bottom: 24px;
+    }
+
+    /* 颜色展示 */
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 16px;
+    }
+
+    .color-item {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .color-swatch {
+      height: 80px;
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: flex-end;
+      padding: 12px;
+      position: relative;
+    }
+
+    .color-swatch span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: var(--font-xs);
+      color: #FFFFFF;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    .color-swatch.dark-text span {
+      color: var(--color-text-primary);
+      text-shadow: none;
+    }
+
+    .color-change-badge {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      background: rgba(255,255,255,0.9);
+      color: #92400E;
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .color-name {
+      font-size: var(--font-sm);
+      font-weight: 500;
+    }
+
+    .color-usage {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+    }
+
+    /* 字体展示 */
+    .font-family-demo {
+      padding: 24px;
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+      margin-bottom: 16px;
+    }
+
+    .font-sans {
+      font-family: 'Inter', -apple-system, sans-serif;
+    }
+
+    .font-mono {
+      font-family: 'JetBrains Mono', Roboto Mono, monospace;
+    }
+
+    .font-label {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .font-sample {
+      font-size: var(--font-xl);
+      margin-bottom: 4px;
+    }
+
+    .font-spec {
+      font-size: var(--font-sm);
+      color: var(--color-text-secondary);
+    }
+
+    /* 字号展示 */
+    .font-size-list {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .font-size-item {
+      display: flex;
+      align-items: baseline;
+      gap: 16px;
+      padding: 16px;
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+    }
+
+    .font-size-label {
+      font-size: var(--font-xs);
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      min-width: 40px;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .font-size-demo {
+      flex: 1;
+    }
+
+    .font-size-usage {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+      min-width: 120px;
+      text-align: right;
+    }
+
+    /* 字重展示 */
+    .font-weight-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .font-weight-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 12px 16px;
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+    }
+
+    .font-weight-label {
+      font-size: var(--font-sm);
+      font-family: 'JetBrains Mono', monospace;
+      min-width: 80px;
+    }
+
+    .font-weight-demo {
+      font-size: var(--font-lg);
+      flex: 1;
+    }
+
+    .font-weight-usage {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+      min-width: 200px;
+      text-align: right;
+    }
+
+    /* 间距展示 */
+    .spacing-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .spacing-item {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .spacing-label {
+      font-size: var(--font-sm);
+      font-family: 'JetBrains Mono', monospace;
+      min-width: 50px;
+    }
+
+    .spacing-visual {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .spacing-box {
+      background: var(--color-primary);
+      opacity: 0.4;
+      border-radius: 2px;
+    }
+
+    .spacing-usage {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+      min-width: 200px;
+    }
+
+    /* 圆角展示 */
+    .radius-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+      gap: 16px;
+    }
+
+    .radius-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      padding: 16px;
+      background: var(--color-bg);
+      border-radius: var(--radius-sm);
+    }
+
+    .radius-box {
+      width: 80px;
+      height: 80px;
+      background: var(--color-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .radius-box.full {
+      width: 60px;
+      height: 60px;
+    }
+
+    .radius-label {
+      font-size: var(--font-sm);
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .radius-usage {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+      text-align: center;
+    }
+
+    /* 阴影展示 */
+    .shadow-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 24px;
+    }
+
+    .shadow-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .shadow-box {
+      width: 120px;
+      height: 80px;
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+    }
+
+    .shadow-label {
+      font-size: var(--font-sm);
+      font-weight: 500;
+    }
+
+    .shadow-code {
+      font-size: var(--font-xs);
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--color-text-secondary);
+      text-align: center;
+      max-width: 200px;
+      word-break: break-all;
+    }
+
+    /* 按钮示例 */
+    .button-demo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .btn {
+      padding: 12px 24px;
+      font-size: var(--font-base);
+      font-weight: 500;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: #FFFFFF;
+      border-radius: var(--radius-sm);
+    }
+
+    .btn-primary:hover {
+      background: var(--color-primary-hover);
+    }
+
+    .btn-pill {
+      background: var(--color-primary);
+      color: #FFFFFF;
+      border-radius: var(--radius-full);
+    }
+
+    .btn-outline {
+      background: transparent;
+      color: var(--color-primary);
+      border: 2px solid var(--color-primary);
+      border-radius: var(--radius-sm);
+    }
+
+    /* 输入框示例 */
+    .input-demo {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 400px;
+    }
+
+    .input {
+      padding: 12px 16px;
+      font-size: var(--font-base);
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-surface);
+      box-shadow: var(--shadow-inner);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .input:focus {
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(180, 83, 9, 0.1);
+    }
+
+    .input::placeholder {
+      color: var(--color-text-tertiary);
+    }
+
+    /* 标签示例 */
+    .tag-demo {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag {
+      padding: 4px 8px;
+      font-size: var(--font-xs);
+      border-radius: var(--radius-xs);
+      font-weight: 500;
+    }
+
+    .tag-up {
+      background: var(--color-up-bg);
+      color: var(--color-up);
+    }
+
+    .tag-down {
+      background: var(--color-down-bg);
+      color: var(--color-down);
+    }
+
+    .tag-warning {
+      background: var(--color-warning-bg);
+      color: var(--color-warning);
+    }
+
+    /* 卡片示例 */
+    .card-demo {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .demo-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .demo-card-title {
+      font-size: var(--font-lg);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .demo-card-text {
+      font-size: var(--font-base);
+      color: var(--color-text-secondary);
+      margin-bottom: 16px;
+    }
+
+    .demo-card-value {
+      font-size: var(--font-2xl);
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .demo-card-value.up {
+      color: var(--color-up);
+    }
+
+    .demo-card-value.down {
+      color: var(--color-down);
+    }
+
+    /* 头像示例 */
+    .avatar-demo {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-full);
+      background: var(--color-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #FFFFFF;
+      font-weight: 500;
+    }
+
+    .avatar-sm {
+      width: 32px;
+      height: 32px;
+      font-size: var(--font-sm);
+    }
+
+    .avatar-lg {
+      width: 64px;
+      height: 64px;
+      font-size: var(--font-xl);
+    }
+
+    .avatar-ai {
+      background: linear-gradient(135deg, #FBBF24 0%, #B45309 100%);
+    }
+
+    /* 对话气泡示例 */
+    .chat-demo {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 400px;
+    }
+
+    .chat-bubble {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      max-width: 80%;
+    }
+
+    .chat-bubble.user {
+      background: var(--color-primary);
+      color: #FFFFFF;
+      align-self: flex-end;
+      border-bottom-right-radius: var(--radius-xs);
+    }
+
+    .chat-bubble.ai {
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      align-self: flex-start;
+      border-bottom-left-radius: var(--radius-xs);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .chat-time {
+      font-size: var(--font-xs);
+      color: var(--color-text-secondary);
+      margin-top: 4px;
+    }
+
+    /* 分割线 */
+    .divider {
+      height: 1px;
+      background: var(--color-border);
+      margin: 24px 0;
+    }
+
+    /* 对比展示 */
+    .comparison-section {
+      margin-top: 48px;
+      padding-top: 48px;
+      border-top: 2px solid var(--color-border);
+    }
+
+    .comparison-title {
+      font-size: var(--font-xl);
+      font-weight: 600;
+      margin-bottom: 24px;
+      color: var(--color-primary);
+    }
+
+    .comparison-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+
+    .comparison-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: 24px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .comparison-card.old {
+      border: 2px solid #E2E8F0;
+    }
+
+    .comparison-card.new {
+      border: 2px solid var(--color-primary-light);
+    }
+
+    .comparison-label {
+      font-size: var(--font-sm);
+      font-weight: 600;
+      margin-bottom: 16px;
+      text-align: center;
+    }
+
+    .comparison-card.old .comparison-label {
+      color: #64748B;
+    }
+
+    .comparison-card.new .comparison-label {
+      color: var(--color-primary);
+    }
+
+    .comparison-swatches {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .comparison-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .comparison-color {
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm);
+    }
+
+    .comparison-info {
+      flex: 1;
+    }
+
+    .comparison-name {
+      font-size: var(--font-sm);
+      font-weight: 500;
+    }
+
+    .comparison-hex {
+      font-size: var(--font-xs);
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--color-text-secondary);
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- 页面标题 -->
+    <h1 class="page-title">AI-ETF 设计系统 (暖色调版)</h1>
+    <p class="page-subtitle">本文档定义了 AI-ETF 应用的视觉设计规范，采用统一的暖色调体系，确保视觉和谐与一致性。</p>
+
+    <!-- 更新说明 -->
+    <div class="update-note">
+      <strong>配色优化说明：</strong> 原设计存在暖色背景+冷色品牌色的色温不统一问题，现已统一为暖色调体系。涨跌色已调整为符合中国市场惯例（红涨绿跌）。
+    </div>
+
+    <!-- 色彩体系 -->
+    <section class="section">
+      <h2 class="section-title">色彩体系 (Color System) - 暖色调统一版</h2>
+
+      <div class="card">
+        <h3 class="subsection-title">背景色</h3>
+        <div class="color-grid">
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #F9F6F0;">
+              <span>#F9F6F0</span>
+            </div>
+            <div class="color-name">页面背景色 (Background)</div>
+            <div class="color-usage">暖米色调，页面整体背景</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch" style="background: #FFFFFF; border: 1px solid var(--color-border);">
+              <span style="color: var(--color-text-primary); text-shadow: none;">#FFFFFF</span>
+            </div>
+            <div class="color-name">内容容器色 (Surface/Card)</div>
+            <div class="color-usage">卡片、容器背景</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">品牌色 - 暖调琥珀棕</h3>
+        <div class="color-grid">
+          <div class="color-item">
+            <div class="color-swatch" style="background: #B45309;">
+              <span class="color-change-badge">已调整</span>
+              <span>#B45309</span>
+            </div>
+            <div class="color-name">主品牌色 (Primary)</div>
+            <div class="color-usage">琥珀棕，用于主按钮、激活状态</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch" style="background: #92400E;">
+              <span class="color-change-badge">已调整</span>
+              <span>#92400E</span>
+            </div>
+            <div class="color-name">悬浮交互色 (Primary Hover)</div>
+            <div class="color-usage">深琥珀，主按钮悬浮状态</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #FBBF24;">
+              <span>#FBBF24</span>
+            </div>
+            <div class="color-name">浅品牌色 (Primary Light)</div>
+            <div class="color-usage">浅琥珀，辅助装饰、高亮</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">文本色 - 暖调深色</h3>
+        <div class="color-grid">
+          <div class="color-item">
+            <div class="color-swatch" style="background: #2D1E16;">
+              <span class="color-change-badge">已调整</span>
+              <span>#2D1E16</span>
+            </div>
+            <div class="color-name">主文本色 (Text Primary)</div>
+            <div class="color-usage">深棕色，标题与正文</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch" style="background: #78716C;">
+              <span class="color-change-badge">已调整</span>
+              <span>#78716C</span>
+            </div>
+            <div class="color-name">次文本色 (Text Secondary)</div>
+            <div class="color-usage">暖灰色，辅助说明、时间戳</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #A8A29E;">
+              <span>#A8A29E</span>
+            </div>
+            <div class="color-name">辅助文本色 (Text Tertiary)</div>
+            <div class="color-usage">浅暖灰，禁用状态、提示</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">边框色 - 暖调边框</h3>
+        <div class="color-grid">
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #E0D8CE;">
+              <span class="color-change-badge">已调整</span>
+              <span>#E0D8CE</span>
+            </div>
+            <div class="color-name">边框/分割线 (Border)</div>
+            <div class="color-usage">暖调浅棕，分割线、边框</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #F5F0EB;">
+              <span>#F5F0EB</span>
+            </div>
+            <div class="color-name">浅边框 (Border Light)</div>
+            <div class="color-usage">更浅的暖边框，微妙分隔</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">语义色 - 符合中国市场惯例</h3>
+        <div class="color-grid">
+          <div class="color-item">
+            <div class="color-swatch" style="background: #DC2626;">
+              <span class="color-change-badge">红涨</span>
+              <span>#DC2626</span>
+            </div>
+            <div class="color-name">上涨色 (Up/Success)</div>
+            <div class="color-usage">红色，表示上涨、成功状态</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch" style="background: #16A34A;">
+              <span class="color-change-badge">绿跌</span>
+              <span>#16A34A</span>
+            </div>
+            <div class="color-name">下跌色 (Down/Danger)</div>
+            <div class="color-usage">绿色，表示下跌、风险状态</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch" style="background: #D97706;">
+              <span class="color-change-badge">已加深</span>
+              <span>#D97706</span>
+            </div>
+            <div class="color-name">警告色 (Warning)</div>
+            <div class="color-usage">深琥珀，提高在米色背景上的对比度</div>
+          </div>
+        </div>
+
+        <p style="font-size: var(--font-sm); color: var(--color-text-secondary); margin-top: 16px; padding: 12px; background: var(--color-bg); border-radius: var(--radius-sm);">
+          <strong>涨跌色说明：</strong> 中国/港台/日本市场惯例为"红涨绿跌"，与欧美市场相反。本次调整符合目标用户认知习惯。
+        </p>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">语义背景色</h3>
+        <div class="color-grid">
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #FEF2F2;">
+              <span>#FEF2F2</span>
+            </div>
+            <div class="color-name">上涨背景 (Up Background)</div>
+            <div class="color-usage">浅红色背景，上涨数据标签</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #F0FDF4;">
+              <span>#F0FDF4</span>
+            </div>
+            <div class="color-name">下跌背景 (Down Background)</div>
+            <div class="color-usage">浅绿色背景，下跌数据标签</div>
+          </div>
+          <div class="color-item">
+            <div class="color-swatch dark-text" style="background: #FFFBEB;">
+              <span>#FFFBEB</span>
+            </div>
+            <div class="color-name">警告背景 (Warning Background)</div>
+            <div class="color-usage">浅琥珀背景，警告提示</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 字体体系 -->
+    <section class="section">
+      <h2 class="section-title">字体体系 (Typography System)</h2>
+
+      <div class="card">
+        <h3 class="subsection-title">字体家族</h3>
+        <div class="font-family-demo font-sans">
+          <div class="font-label">Sans-serif (主字体)</div>
+          <div class="font-sample">Inter, -apple-system, sans-serif</div>
+          <div class="font-spec">用于正文、标题、按钮等</div>
+        </div>
+        <div class="font-family-demo font-mono">
+          <div class="font-label">Monospace (数据字体)</div>
+          <div class="font-sample">JetBrains Mono, Roboto Mono</div>
+          <div class="font-spec">用于金额、股票代码等数据展示</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">字号规范 (Font Sizes)</h3>
+        <div class="font-size-list">
+          <div class="font-size-item">
+            <span class="font-size-label">2xl</span>
+            <span class="font-size-demo" style="font-size: 32px;">大标题、总资产</span>
+            <span class="font-size-usage">32px</span>
+          </div>
+          <div class="font-size-item">
+            <span class="font-size-label">xl</span>
+            <span class="font-size-demo" style="font-size: 24px;">一级标题、模块标题</span>
+            <span class="font-size-usage">24px</span>
+          </div>
+          <div class="font-size-item">
+            <span class="font-size-label">lg</span>
+            <span class="font-size-demo" style="font-size: 20px;">二级标题、卡片标题</span>
+            <span class="font-size-usage">20px</span>
+          </div>
+          <div class="font-size-item">
+            <span class="font-size-label">base</span>
+            <span class="font-size-demo" style="font-size: 16px;">正文、AI对话</span>
+            <span class="font-size-usage">16px</span>
+          </div>
+          <div class="font-size-item">
+            <span class="font-size-label">sm</span>
+            <span class="font-size-demo" style="font-size: 14px;">辅助说明、输入框提示</span>
+            <span class="font-size-usage">14px</span>
+          </div>
+          <div class="font-size-item">
+            <span class="font-size-label">xs</span>
+            <span class="font-size-demo" style="font-size: 12px;">标签、微型文本</span>
+            <span class="font-size-usage">12px</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">字重规范 (Font Weights)</h3>
+        <div class="font-weight-list">
+          <div class="font-weight-item">
+            <span class="font-weight-label">Regular</span>
+            <span class="font-weight-demo" style="font-weight: 400;">基础正文、对话气泡</span>
+            <span class="font-weight-usage">400</span>
+          </div>
+          <div class="font-weight-item">
+            <span class="font-weight-label">Medium</span>
+            <span class="font-weight-demo" style="font-weight: 500;">按钮、次级标题、表头</span>
+            <span class="font-weight-usage">500</span>
+          </div>
+          <div class="font-weight-item">
+            <span class="font-weight-label">SemiBold</span>
+            <span class="font-weight-demo" style="font-weight: 600;">核心模块标题、关键财务数据</span>
+            <span class="font-weight-usage">600</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 间距体系 -->
+    <section class="section">
+      <h2 class="section-title">间距体系 (Spacing System)</h2>
+
+      <div class="card">
+        <h3 class="subsection-title">基于 8px 栅格的间距规范</h3>
+        <div class="spacing-grid">
+          <div class="spacing-item">
+            <span class="spacing-label">2px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 2px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">微调间距，如图标与文字</span>
+          </div>
+          <div class="spacing-item">
+            <span class="spacing-label">4px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 4px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">组件内部极小间距，如数据标签内部</span>
+          </div>
+          <div class="spacing-item">
+            <span class="spacing-label">8px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 8px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">关联元素间距，如列表项之间</span>
+          </div>
+          <div class="spacing-item">
+            <span class="spacing-label">16px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 16px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">基础内边距 (Padding)、段落间距</span>
+          </div>
+          <div class="spacing-item">
+            <span class="spacing-label">24px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 24px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">独立模块内边距、卡片间距</span>
+          </div>
+          <div class="spacing-item">
+            <span class="spacing-label">32px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 32px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">页面区块间距</span>
+          </div>
+          <div class="spacing-item">
+            <span class="spacing-label">48px</span>
+            <div class="spacing-visual">
+              <div class="spacing-box" style="width: 48px; height: 24px;"></div>
+            </div>
+            <span class="spacing-usage">大型页面分栏间距</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 圆角规范 -->
+    <section class="section">
+      <h2 class="section-title">圆角规范 (Border Radius)</h2>
+
+      <div class="card">
+        <div class="radius-grid">
+          <div class="radius-item">
+            <div class="radius-box" style="border-radius: 2px;"></div>
+            <span class="radius-label">xs: 2px</span>
+            <span class="radius-usage">极小标签、复选框</span>
+          </div>
+          <div class="radius-item">
+            <div class="radius-box" style="border-radius: 6px;"></div>
+            <span class="radius-label">sm: 6px</span>
+            <span class="radius-usage">基础按钮、输入框</span>
+          </div>
+          <div class="radius-item">
+            <div class="radius-box" style="border-radius: 12px;"></div>
+            <span class="radius-label">md: 12px</span>
+            <span class="radius-usage">标准内容卡片、AI对话气泡</span>
+          </div>
+          <div class="radius-item">
+            <div class="radius-box" style="border-radius: 24px;"></div>
+            <span class="radius-label">lg: 24px</span>
+            <span class="radius-usage">大型图表容器、模态弹窗</span>
+          </div>
+          <div class="radius-item">
+            <div class="radius-box full" style="border-radius: 9999px;"></div>
+            <span class="radius-label">full: 9999px</span>
+            <span class="radius-usage">药丸型按钮、用户/AI头像</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 阴影规范 -->
+    <section class="section">
+      <h2 class="section-title">阴影规范 (Shadow System) - 暖调阴影</h2>
+
+      <div class="card">
+        <p style="font-size: var(--font-sm); color: var(--color-text-secondary); margin-bottom: 24px;">
+          阴影基于暖调深棕色 <code style="font-family: 'JetBrains Mono'; background: var(--color-bg); padding: 2px 6px; border-radius: 4px;">rgba(45, 30, 22, x)</code>，与暖色背景协调
+        </p>
+        <div class="shadow-grid">
+          <div class="shadow-item">
+            <div class="shadow-box" style="box-shadow: 0 1px 2px 0 rgba(45, 30, 22, 0.06);">
+              Shadow-SM
+            </div>
+            <span class="shadow-label">小阴影</span>
+            <span class="shadow-code">rgba(45, 30, 22, 0.06)</span>
+          </div>
+          <div class="shadow-item">
+            <div class="shadow-box" style="box-shadow: 0 4px 6px -1px rgba(45, 30, 22, 0.10), 0 2px 4px -2px rgba(45, 30, 22, 0.05);">
+              Shadow-MD
+            </div>
+            <span class="shadow-label">中阴影</span>
+            <span class="shadow-code">rgba(45, 30, 22, 0.10)</span>
+          </div>
+          <div class="shadow-item">
+            <div class="shadow-box" style="box-shadow: 0 10px 15px -3px rgba(45, 30, 22, 0.10), 0 4px 6px -4px rgba(45, 30, 22, 0.05);">
+              Shadow-LG
+            </div>
+            <span class="shadow-label">大阴影</span>
+            <span class="shadow-code">rgba(45, 30, 22, 0.10)</span>
+          </div>
+          <div class="shadow-item">
+            <div class="shadow-box" style="box-shadow: inset 0 2px 4px 0 rgba(45, 30, 22, 0.05);">
+              Shadow-Inner
+            </div>
+            <span class="shadow-label">内阴影</span>
+            <span class="shadow-code">inset rgba(45, 30, 22, 0.05)</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 组件示例 -->
+    <section class="section">
+      <h2 class="section-title">组件示例 (Component Examples)</h2>
+
+      <div class="card">
+        <h3 class="subsection-title">按钮 (Buttons)</h3>
+        <div class="button-demo">
+          <button class="btn btn-primary">主要按钮</button>
+          <button class="btn btn-pill">药丸按钮</button>
+          <button class="btn btn-outline">描边按钮</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">输入框 (Input)</h3>
+        <div class="input-demo">
+          <input type="text" class="input" placeholder="请输入内容...">
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">标签 (Tags) - 红涨绿跌</h3>
+        <div class="tag-demo">
+          <span class="tag tag-up">上涨 +2.5%</span>
+          <span class="tag tag-down">下跌 -1.8%</span>
+          <span class="tag tag-warning">风险提示</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">卡片 (Cards) - 数据展示</h3>
+        <div class="card-demo">
+          <div class="demo-card">
+            <div class="demo-card-title">总资产</div>
+            <div class="demo-card-text">账户总价值</div>
+            <div class="demo-card-value up">¥128,560.00</div>
+          </div>
+          <div class="demo-card">
+            <div class="demo-card-title">今日收益</div>
+            <div class="demo-card-text">今日盈亏情况</div>
+            <div class="demo-card-value down">-¥1,280.00</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">头像 (Avatars)</h3>
+        <div class="avatar-demo">
+          <div class="avatar avatar-sm">U</div>
+          <div class="avatar">U</div>
+          <div class="avatar avatar-lg">U</div>
+          <div class="avatar avatar-ai">AI</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3 class="subsection-title">对话气泡 (Chat Bubbles)</h3>
+        <div class="chat-demo">
+          <div class="chat-bubble user">
+            <div>帮我分析一下这只股票</div>
+            <div class="chat-time" style="color: rgba(255,255,255,0.7);">10:30</div>
+          </div>
+          <div class="chat-bubble.ai">
+            <div>好的，我来为您分析这只股票的技术指标和基本面情况...</div>
+            <div class="chat-time">10:31</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 对比展示 -->
+    <section class="comparison-section">
+      <h2 class="comparison-title">新旧配色对比</h2>
+
+      <div class="comparison-grid">
+        <div class="comparison-card old">
+          <div class="comparison-label">旧版配色 (冷色调)</div>
+          <div class="comparison-swatches">
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #2563EB;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">品牌色</div>
+                <div class="comparison-hex">#2563EB (冷蓝)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #0F172A;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">主文本</div>
+                <div class="comparison-hex">#0F172A (冷黑)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #64748B;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">次文本</div>
+                <div class="comparison-hex">#64748B (冷灰)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #E2E8F0;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">边框色</div>
+                <div class="comparison-hex">#E2E8F0 (冷灰边框)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #10B981;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">上涨色</div>
+                <div class="comparison-hex">#10B981 (绿涨 ❌)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="comparison-card new">
+          <div class="comparison-label">新版配色 (暖色调统一)</div>
+          <div class="comparison-swatches">
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #B45309;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">品牌色</div>
+                <div class="comparison-hex">#B45309 (琥珀棕)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #2D1E16;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">主文本</div>
+                <div class="comparison-hex">#2D1E16 (深棕)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #78716C;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">次文本</div>
+                <div class="comparison-hex">#78716C (暖灰)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #E0D8CE;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">边框色</div>
+                <div class="comparison-hex">#E0D8CE (暖边框)</div>
+              </div>
+            </div>
+            <div class="comparison-item">
+              <div class="comparison-color" style="background: #DC2626;"></div>
+              <div class="comparison-info">
+                <div class="comparison-name">上涨色</div>
+                <div class="comparison-hex">#DC2626 (红涨 ✓)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+</body>
+</html>

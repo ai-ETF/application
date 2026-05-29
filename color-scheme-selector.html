@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>品牌色与对话框配色方案选择</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      /* 统一的基础变量 */
+      --color-bg: #F9F6F0;
+      --color-surface: #FFFFFF;
+      --color-text-primary: #2D1E16;
+      --color-text-secondary: #78716C;
+      --color-border: #E0D8CE;
+      --color-up: #DC2626;
+      --color-down: #16A34A;
+
+      --font-2xl: 32px;
+      --font-xl: 24px;
+      --font-lg: 20px;
+      --font-base: 16px;
+      --font-sm: 14px;
+      --font-xs: 12px;
+
+      --radius-sm: 6px;
+      --radius-md: 12px;
+      --radius-full: 9999px;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      background-color: var(--color-bg);
+      color: var(--color-text-primary);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 48px 24px;
+    }
+
+    .page-title {
+      font-size: var(--font-2xl);
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+
+    .page-subtitle {
+      font-size: var(--font-base);
+      color: var(--color-text-secondary);
+      margin-bottom: 48px;
+    }
+
+    /* 方案展示 */
+    .schemes-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 32px;
+    }
+
+    .scheme-card {
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      padding: 32px;
+      border: 2px solid transparent;
+      transition: border-color 0.2s;
+    }
+
+    .scheme-card:hover {
+      border-color: var(--color-border);
+    }
+
+    .scheme-header {
+      margin-bottom: 24px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .scheme-number {
+      font-size: var(--font-xs);
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .scheme-title {
+      font-size: var(--font-xl);
+      font-weight: 600;
+    }
+
+    .scheme-desc {
+      font-size: var(--font-sm);
+      color: var(--color-text-secondary);
+      margin-top: 8px;
+    }
+
+    /* 颜色展示 */
+    .color-section {
+      margin-bottom: 24px;
+    }
+
+    .color-section-title {
+      font-size: var(--font-sm);
+      font-weight: 600;
+      color: var(--color-text-secondary);
+      margin-bottom: 12px;
+    }
+
+    .color-swatches {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .color-swatch-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .color-swatch {
+      width: 64px;
+      height: 64px;
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .color-swatch span {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      color: #FFFFFF;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.3);
+    }
+
+    .color-swatch.light span {
+      color: var(--color-text-primary);
+      text-shadow: none;
+    }
+
+    .color-name {
+      font-size: var(--font-xs);
+      font-weight: 500;
+      text-align: center;
+    }
+
+    /* 按钮示例 */
+    .button-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-bottom: 24px;
+    }
+
+    .demo-btn {
+      padding: 12px 24px;
+      font-size: var(--font-base);
+      font-weight: 500;
+      border: none;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+    }
+
+    .demo-btn-pill {
+      border-radius: var(--radius-full);
+    }
+
+    .demo-btn-outline {
+      background: transparent;
+      border: 2px solid;
+    }
+
+    /* 对话框示例 */
+    .chat-demo {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 320px;
+    }
+
+    .chat-bubble {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      max-width: 85%;
+      font-size: var(--font-sm);
+    }
+
+    .chat-bubble.user {
+      align-self: flex-end;
+      border-bottom-right-radius: 4px;
+    }
+
+    .chat-bubble.ai {
+      background: var(--color-surface);
+      color: var(--color-text-primary);
+      align-self: flex-start;
+      border-bottom-left-radius: 4px;
+      box-shadow: 0 1px 2px rgba(45, 30, 22, 0.06);
+    }
+
+    .chat-time {
+      font-size: var(--font-xs);
+      margin-top: 4px;
+    }
+
+    /* 头像示例 */
+    .avatar-row {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-full);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 500;
+      font-size: var(--font-base);
+    }
+
+    .avatar-sm {
+      width: 36px;
+      height: 36px;
+      font-size: var(--font-sm);
+    }
+
+    /* 方案1: 温暖琥珀 */
+    .scheme-1 .scheme-title { color: #B45309; }
+
+    .scheme-1 .primary-color { background: #B45309; }
+    .scheme-1 .primary-hover { background: #92400E; }
+    .scheme-1 .primary-light { background: #FBBF24; }
+    .scheme-1 .primary-lighter { background: #FEF3C7; }
+
+    .scheme-1 .demo-btn {
+      background: #B45309;
+      color: #FFFFFF;
+    }
+    .scheme-1 .demo-btn:hover { background: #92400E; }
+    .scheme-1 .demo-btn-outline {
+      color: #B45309;
+      border-color: #B45309;
+    }
+
+    .scheme-1 .avatar.user {
+      background: #B45309;
+      color: #FFFFFF;
+    }
+    .scheme-1 .avatar.ai {
+      background: linear-gradient(135deg, #FBBF24 0%, #B45309 100%);
+      color: #FFFFFF;
+    }
+
+    .scheme-1 .chat-bubble.user {
+      background: #B45309;
+      color: #FFFFFF;
+    }
+    .scheme-1 .chat-time.user { color: rgba(255,255,255,0.7); }
+    .scheme-1 .chat-time.ai { color: var(--color-text-secondary); }
+
+    /* 方案2: 柔和杏橙 */
+    .scheme-2 .scheme-title { color: #C2704A; }
+
+    .scheme-2 .primary-color { background: #C2704A; }
+    .scheme-2 .primary-hover { background: #A35A38; }
+    .scheme-2 .primary-light { background: #E8A882; }
+    .scheme-2 .primary-lighter { background: #FAE5D8; }
+
+    .scheme-2 .demo-btn {
+      background: #C2704A;
+      color: #FFFFFF;
+    }
+    .scheme-2 .demo-btn:hover { background: #A35A38; }
+    .scheme-2 .demo-btn-outline {
+      color: #C2704A;
+      border-color: #C2704A;
+    }
+
+    .scheme-2 .avatar.user {
+      background: #C2704A;
+      color: #FFFFFF;
+    }
+    .scheme-2 .avatar.ai {
+      background: linear-gradient(135deg, #E8A882 0%, #C2704A 100%);
+      color: #FFFFFF;
+    }
+
+    .scheme-2 .chat-bubble.user {
+      background: #C2704A;
+      color: #FFFFFF;
+    }
+    .scheme-2 .chat-time.user { color: rgba(255,255,255,0.7); }
+    .scheme-2 .chat-time.ai { color: var(--color-text-secondary); }
+
+    /* 方案3: 温润棕褐 */
+    .scheme-3 .scheme-title { color: #8B5A2B; }
+
+    .scheme-3 .primary-color { background: #8B5A2B; }
+    .scheme-3 .primary-hover { background: #6B4423; }
+    .scheme-3 .primary-light { background: #C49A6C; }
+    .scheme-3 .primary-lighter { background: #F5E6D3; }
+
+    .scheme-3 .demo-btn {
+      background: #8B5A2B;
+      color: #FFFFFF;
+    }
+    .scheme-3 .demo-btn:hover { background: #6B4423; }
+    .scheme-3 .demo-btn-outline {
+      color: #8B5A2B;
+      border-color: #8B5A2B;
+    }
+
+    .scheme-3 .avatar.user {
+      background: #8B5A2B;
+      color: #FFFFFF;
+    }
+    .scheme-3 .avatar.ai {
+      background: linear-gradient(135deg, #C49A6C 0%, #8B5A2B 100%);
+      color: #FFFFFF;
+    }
+
+    .scheme-3 .chat-bubble.user {
+      background: #8B5A2B;
+      color: #FFFFFF;
+    }
+    .scheme-3 .chat-time.user { color: rgba(255,255,255,0.7); }
+    .scheme-3 .chat-time.ai { color: var(--color-text-secondary); }
+
+    /* 对比表格 */
+    .comparison-table {
+      margin-top: 48px;
+      padding-top: 48px;
+      border-top: 2px solid var(--color-border);
+    }
+
+    .comparison-title {
+      font-size: var(--font-xl);
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+
+    .table-wrapper {
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--color-surface);
+      border-radius: var(--radius-md);
+      box-shadow: 0 1px 2px rgba(45, 30, 22, 0.06);
+    }
+
+    th, td {
+      padding: 16px 20px;
+      text-align: left;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    th {
+      font-weight: 600;
+      background: var(--color-bg);
+      font-size: var(--font-sm);
+    }
+
+    td {
+      font-size: var(--font-sm);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .table-color-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .table-color-box {
+      width: 32px;
+      height: 32px;
+      border-radius: 4px;
+    }
+
+    .table-hex {
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--color-text-secondary);
+    }
+
+    /* 推荐标记 */
+    .recommend-badge {
+      display: inline-block;
+      background: #FBBF24;
+      color: #78350F;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-left: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1 class="page-title">品牌色与对话框配色方案选择</h1>
+    <p class="page-subtitle">以下提供3个配色方案，均在暖色调体系内，请选择最适合的方案。</p>
+
+    <!-- 方案展示 -->
+    <div class="schemes-grid">
+      <!-- 方案1: 温暖琥珀 -->
+      <div class="scheme-card scheme-1">
+        <div class="scheme-header">
+          <div class="scheme-number">方案 A</div>
+          <h2 class="scheme-title">温暖琥珀<span class="recommend-badge">推荐</span></h2>
+          <p class="scheme-desc">明亮的琥珀色调，活力感强，与米色背景形成鲜明对比，适合年轻化投资产品</p>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">品牌色层级</div>
+          <div class="color-swatches">
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-color"><span>#B45309</span></div>
+              <div class="color-name">主色</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-hover"><span>#92400E</span></div>
+              <div class="color-name">悬浮</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-light light"><span>#FBBF24</span></div>
+              <div class="color-name">浅色</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-lighter light"><span>#FEF3C7</span></div>
+              <div class="color-name">背景</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">按钮示例</div>
+          <div class="button-row">
+            <button class="demo-btn">主要按钮</button>
+            <button class="demo-btn demo-btn-pill">药丸按钮</button>
+            <button class="demo-btn demo-btn-outline">描边按钮</button>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">头像示例</div>
+          <div class="avatar-row">
+            <div class="avatar user">U</div>
+            <div class="avatar ai">AI</div>
+            <div class="avatar avatar-sm user">U</div>
+            <div class="avatar avatar-sm ai">AI</div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">对话框示例</div>
+          <div class="chat-demo">
+            <div class="chat-bubble user">
+              <div>帮我分析一下这只股票的走势</div>
+              <div class="chat-time user">10:30</div>
+            </div>
+            <div class="chat-bubble ai">
+              <div>好的，我来为您分析这只股票的技术指标和基本面...</div>
+              <div class="chat-time ai">10:31</div>
+            </div>
+            <div class="chat-bubble user">
+              <div>谢谢！</div>
+              <div class="chat-time user">10:32</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 方案2: 柔和杏橙 -->
+      <div class="scheme-card scheme-2">
+        <div class="scheme-header">
+          <div class="scheme-number">方案 B</div>
+          <h2 class="scheme-title">柔和杏橙</h2>
+          <p class="scheme-desc">杏橙色调，更柔和的对比，优雅温和，适合稳重型投资产品</p>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">品牌色层级</div>
+          <div class="color-swatches">
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-color"><span>#C2704A</span></div>
+              <div class="color-name">主色</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-hover"><span>#A35A38</span></div>
+              <div class="color-name">悬浮</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-light light"><span>#E8A882</span></div>
+              <div class="color-name">浅色</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-lighter light"><span>#FAE5D8</span></div>
+              <div class="color-name">背景</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">按钮示例</div>
+          <div class="button-row">
+            <button class="demo-btn">主要按钮</button>
+            <button class="demo-btn demo-btn-pill">药丸按钮</button>
+            <button class="demo-btn demo-btn-outline">描边按钮</button>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">头像示例</div>
+          <div class="avatar-row">
+            <div class="avatar user">U</div>
+            <div class="avatar ai">AI</div>
+            <div class="avatar avatar-sm user">U</div>
+            <div class="avatar avatar-sm ai">AI</div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">对话框示例</div>
+          <div class="chat-demo">
+            <div class="chat-bubble user">
+              <div>帮我分析一下这只股票的走势</div>
+              <div class="chat-time user">10:30</div>
+            </div>
+            <div class="chat-bubble ai">
+              <div>好的，我来为您分析这只股票的技术指标和基本面...</div>
+              <div class="chat-time ai">10:31</div>
+            </div>
+            <div class="chat-bubble user">
+              <div>谢谢！</div>
+              <div class="chat-time user">10:32</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 方案3: 温润棕褐 -->
+      <div class="scheme-card scheme-3">
+        <div class="scheme-header">
+          <div class="scheme-number">方案 C</div>
+          <h2 class="scheme-title">温润棕褐</h2>
+          <p class="scheme-desc">经典棕褐色，沉稳大气，金融质感强，适合专业型投资产品</p>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">品牌色层级</div>
+          <div class="color-swatches">
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-color"><span>#8B5A2B</span></div>
+              <div class="color-name">主色</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-hover"><span>#6B4423</span></div>
+              <div class="color-name">悬浮</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-light light"><span>#C49A6C</span></div>
+              <div class="color-name">浅色</div>
+            </div>
+            <div class="color-swatch-item">
+              <div class="color-swatch primary-lighter light"><span>#F5E6D3</span></div>
+              <div class="color-name">背景</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">按钮示例</div>
+          <div class="button-row">
+            <button class="demo-btn">主要按钮</button>
+            <button class="demo-btn demo-btn-pill">药丸按钮</button>
+            <button class="demo-btn demo-btn-outline">描边按钮</button>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">头像示例</div>
+          <div class="avatar-row">
+            <div class="avatar user">U</div>
+            <div class="avatar ai">AI</div>
+            <div class="avatar avatar-sm user">U</div>
+            <div class="avatar avatar-sm ai">AI</div>
+          </div>
+        </div>
+
+        <div class="color-section">
+          <div class="color-section-title">对话框示例</div>
+          <div class="chat-demo">
+            <div class="chat-bubble user">
+              <div>帮我分析一下这只股票的走势</div>
+              <div class="chat-time user">10:30</div>
+            </div>
+            <div class="chat-bubble ai">
+              <div>好的，我来为您分析这只股票的技术指标和基本面...</div>
+              <div class="chat-time ai">10:31</div>
+            </div>
+            <div class="chat-bubble user">
+              <div>谢谢！</div>
+              <div class="chat-time user">10:32</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 对比表格 -->
+    <div class="comparison-table">
+      <h2 class="comparison-title">配色对比表</h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>属性</th>
+              <th>方案 A (温暖琥珀)</th>
+              <th>方案 B (柔和杏橙)</th>
+              <th>方案 C (温润棕褐)</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>主品牌色</td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #B45309;"></div>
+                  <span class="table-hex">#B45309</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #C2704A;"></div>
+                  <span class="table-hex">#C2704A</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #8B5A2B;"></div>
+                  <span class="table-hex">#8B5A2B</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>悬浮状态</td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #92400E;"></div>
+                  <span class="table-hex">#92400E</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #A35A38;"></div>
+                  <span class="table-hex">#A35A38</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #6B4423;"></div>
+                  <span class="table-hex">#6B4423</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>浅品牌色</td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #FBBF24;"></div>
+                  <span class="table-hex">#FBBF24</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #E8A882;"></div>
+                  <span class="table-hex">#E8A882</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #C49A6C;"></div>
+                  <span class="table-hex">#C49A6C</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>用户对话框</td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #B45309;"></div>
+                  <span class="table-hex">#B45309</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #C2704A;"></div>
+                  <span class="table-hex">#C2704A</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: #8B5A2B;"></div>
+                  <span class="table-hex">#8B5A2B</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>AI头像</td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: linear-gradient(135deg, #FBBF24, #B45309);"></div>
+                  <span class="table-hex">渐变</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: linear-gradient(135deg, #E8A882, #C2704A);"></div>
+                  <span class="table-hex">渐变</span>
+                </div>
+              </td>
+              <td>
+                <div class="table-color-cell">
+                  <div class="table-color-box" style="background: linear-gradient(135deg, #C49A6C, #8B5A2B);"></div>
+                  <span class="table-hex">渐变</span>
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td>风格特点</td>
+              <td>明亮活力，对比鲜明</td>
+              <td>柔和优雅，温和舒适</td>
+              <td>沉稳专业，金融质感</td>
+            </tr>
+            <tr>
+              <td>适合场景</td>
+              <td>年轻用户、移动端为主</td>
+              <td>大众用户、平衡型产品</td>
+              <td>专业投资者、桌面端为主</td>
+            </tr>
+            <tr>
+              <td>对比度评价</td>
+              <td>高对比度，醒目突出</td>
+              <td>中等对比度，舒适平衡</td>
+              <td>较低对比度，稳重内敛</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

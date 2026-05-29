@@ -2,7 +2,28 @@
 <html>
   <head>
     <meta charset="UTF-8" />
+    <!--
+      ============================================
+      H5 平台入口文件 (仅 H5 平台使用)
+      ============================================
+
+      uni-app 是跨平台框架，不同平台有不同入口：
+      - H5 平台：使用此 index.html 作为入口
+      - 小程序平台：使用原生小程序配置（如 app.json）
+      - App 平台：使用原生应用入口
+
+      这个文件的作用：
+      1. 设置 viewport，适配移动端屏幕
+      2. 加载 Vue 应用入口 (main.ts)
+
+      注意：
+      - <div id="app"> 是 Vue 挂载点
+      - <！--app-html——> 会被编译时替换为页面内容
+      - 小程序/App 平台不会使用此文件
+      - 具体是如何做到的我不清楚，可能和dom相关涉及非常多底层知识，应该找个时间补一下这部分内容
+    -->
     <script>
+      // 检测浏览器是否支持 env() 安全区域特性（适配 iPhone X 等刘海屏）
       var coverSupport = 'CSS' in window && typeof CSS.supports === 'function' && (CSS.supports('top: env(a)') ||
         CSS.supports('top: constant(a)'))
       document.write(
@@ -14,7 +35,10 @@
     <!--app-context-->
   </head>
   <body>
+    <!-- Vue 应用挂载点：编译后，页面内容会注入到这里 -->
     <div id="app"><!--app-html--></div>
+
+    <!-- 加载 Vue 应用入口：从这里开始执行 main.ts -->
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
