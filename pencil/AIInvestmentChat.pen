@@ -1,5 +1,5 @@
 {
-  "version": "2.8",
+  "version": "2.10",
   "children": [
     {
       "type": "frame",
@@ -154,7 +154,7 @@
                           "id": "rIXMG",
                           "name": "mainTitle",
                           "fill": "#000000",
-                          "content": "小E",
+                          "content": "见己",
                           "fontFamily": "Inter",
                           "fontSize": 20,
                           "fontWeight": "bold"
