@@ -20,3 +20,4 @@ dist
 *.sln
 *.sw?
 CLAUDE.md
+.codegraph/
