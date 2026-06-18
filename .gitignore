@@ -19,5 +19,5 @@ dist
 *.njsproj
 *.sln
 *.sw?
-CLAUDE.md
 .codegraph/
+
