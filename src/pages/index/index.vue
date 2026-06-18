@@ -66,27 +66,9 @@ const userId = ref<string>('');
 
 // ==================== 初始化 ====================
 
-/**
- * 初始化用户 ID
- * @description 从本地存储获取，如果没有则生成一个并保存
- */
-function initUserId() {
-  let id = uni.getStorageSync('user_id');
-  if (!id) {
-    // 生成 UUID 格式的用户 ID
-    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-      const r = (Math.random() * 16) | 0;
-      const v = c === 'x' ? r : (r & 0x3) | 0x8;
-      return v.toString(16);
-    });
-    uni.setStorageSync('user_id', id);
-  }
-  userId.value = id;
-  console.log('[IndexPage] 用户 ID:', id);
-}
-
-// 页面加载时初始化用户 ID
-initUserId();
+// 固定用户 ID（后续接入登录系统后替换为动态获取）
+userId.value = 'e2afd2d6-cf47-4d39-9984-dff3645b42e3';
+console.log('[IndexPage] 用户 ID:', userId.value);
 
 // ==================== 事件处理函数 ====================
 
