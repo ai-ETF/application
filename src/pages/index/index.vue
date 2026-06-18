@@ -74,104 +74,84 @@ console.log('[IndexPage] 用户 ID:', userId.value);
 
 /**
  * SSE 流式聊天 API
- * @description 调用后端 SSE 接口，实时返回 AI 回复（使用 uni.request 流式接收）
+ * @description 调用后端 SSE 接口，实时返回 AI 回复
  * @param question - 用户提问内容
  * @param onToken - 每个 token 的回调函数
  * @returns Promise<string> - 返回 chat_id，用于后续会话
  */
-function streamChat(question: string, onToken: (token: string) => void): Promise<string> {
-  return new Promise((resolve, reject) => {
-    // 构建请求体
-    const requestBody: Record<string, string> = {
-      user_id: userId.value,
-      question,
-    };
+async function streamChat(question: string, onToken: (token: string) => void): Promise<string> {
+  // 构建请求体
+  const requestBody: Record<string, string> = {
+    user_id: userId.value,
+    question,
+  };
 
-    // 如果有会话 ID，添加到请求中以继续已有会话
-    if (chatId.value) {
-      requestBody.chat_id = chatId.value;
-    }
+  // 如果有会话 ID，添加到请求中以继续已有会话
+  if (chatId.value) {
+    requestBody.chat_id = chatId.value;
+  }
 
-    console.log('[SSE] 发送请求:', requestBody);
+  console.log('[SSE] 发送请求:', requestBody);
 
-    // 用于累积未完成的数据
-    let buffer = '';
-    let newChatId = '';
+  // 使用 fetch 实现 SSE 流式接收
+  const response = await fetch('http://47.113.220.182:8000/api/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestBody),
+  });
 
-    // @ts-ignore - wx.request 支持 enableChunked 和 onChunkReceived
-    const requestTask = uni.request({
-      url: 'http://47.113.220.182:8000/api/messages',
-      method: 'POST',
-      data: requestBody,
-      header: {
-        'Content-Type': 'application/json',
-      },
-      enableChunked: true,
-      success: (res) => {
-        console.log('[SSE] 请求完成');
-        resolve(newChatId);
-      },
-      fail: (err) => {
-        console.error('[SSE] 请求失败:', err);
-        reject(err);
-      },
-    });
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
 
-    // 监听流式数据接收
-    // @ts-ignore - onChunkReceived 是微信小程序特有 API
-    requestTask.onChunkReceived((res) => {
-      // 将 ArrayBuffer 转换为字符串
-      const chunk = arrayBufferToString(res.data);
-      buffer += chunk;
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
 
-      // 解析 SSE 数据：每行格式为 "data: {...}"
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || ''; // 保留未完成的行
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let newChatId = '';
 
-      for (const line of lines) {
-        const trimmedLine = line.trim();
-        if (trimmedLine.startsWith('data:')) {
-          try {
-            const jsonStr = trimmedLine.slice(5).trim();
-            const data = JSON.parse(jsonStr);
-            console.log('[SSE] 收到数据:', data);
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
 
-            // 处理 token 类型的消息
-            if (data.type === 'token' && data.content) {
-              onToken(data.content);
-            }
+    buffer += decoder.decode(value, { stream: true });
 
-            // 处理 done 类型的消息，提取 chat_id
-            if (data.type === 'done' && data.chat_id) {
-              newChatId = data.chat_id;
-              console.log('[SSE] 会话完成，chat_id:', newChatId);
-            }
-          } catch (e) {
-            // 解析失败，忽略该行
-            console.warn('[SSE] 解析失败:', trimmedLine, e);
+    // 解析 SSE 数据：每行格式为 "data: {...}"
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || ''; // 保留未完成的行
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('data:')) {
+        try {
+          const jsonStr = trimmedLine.slice(5).trim();
+          const data = JSON.parse(jsonStr);
+          console.log('[SSE] 收到数据:', data);
+
+          // 处理 token 类型的消息
+          if (data.type === 'token' && data.content) {
+            onToken(data.content);
           }
+
+          // 处理 done 类型的消息，提取 chat_id
+          if (data.type === 'done' && data.chat_id) {
+            newChatId = data.chat_id;
+            console.log('[SSE] 会话完成，chat_id:', newChatId);
+          }
+        } catch (e) {
+          // 解析失败，忽略该行
+          console.warn('[SSE] 解析失败:', trimmedLine, e);
         }
       }
-    });
-  });
-}
+    }
+  }
 
-/**
- * ArrayBuffer 转字符串
- * @description 将微信小程序接收到的 ArrayBuffer 转换为 UTF-8 字符串
- */
-function arrayBufferToString(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let result = '';
-  for (let i = 0; i < bytes.length; i++) {
-    result += String.fromCharCode(bytes[i]);
-  }
-  // 处理中文等多字节字符
-  try {
-    return decodeURIComponent(escape(result));
-  } catch {
-    return result;
-  }
+  return newChatId;
 }
 
 /**
