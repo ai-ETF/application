@@ -36,7 +36,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import TabBar from '@/components/common/TabBar.vue';
 import ChatTopBar from '@/components/chat/ChatTopBar.vue';
 import ChatMessageList from '@/components/chat/ChatMessageList.vue';
@@ -55,10 +55,70 @@ const isLoading = ref<boolean>(false);
 /** 消息列表组件引用（用于调用 scrollToBottom 方法） */
 const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 
+/** 滚动位置（用于触发滚动到底部） */
+const scrollTop = ref<number>(0);
+
 // ==================== 事件处理函数 ====================
 
 /**
+ * SSE 流式聊天 API
+ * @description 调用后端 SSE 接口，实时返回 AI 回复
+ * @param question - 用户提问内容
+ * @param onToken - 每个 token 的回调函数
+ * @returns Promise<void>
+ */
+async function streamChat(question: string, onToken: (token: string) => void): Promise<void> {
+  const response = await fetch('http://47.113.220.182:8000/api/simple-chat', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ question }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  const reader = response.body?.getReader();
+  if (!reader) {
+    throw new Error('No response body');
+  }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+
+    // 解析 SSE 数据：每行格式为 "data: {...}"
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || ''; // 保留未完成的行
+
+    for (const line of lines) {
+      const trimmedLine = line.trim();
+      if (trimmedLine.startsWith('data:')) {
+        try {
+          const jsonStr = trimmedLine.slice(5).trim();
+          const data = JSON.parse(jsonStr);
+          if (data.type === 'token' && data.content) {
+            onToken(data.content);
+          }
+        } catch (e) {
+          // 解析失败，忽略该行
+          console.warn('[SSE] Failed to parse line:', trimmedLine, e);
+        }
+      }
+    }
+  }
+}
+
+/**
  * 发送消息
+ * @description 将用户消息添加到列表，并通过 SSE 流式获取 AI 回复
  */
 async function handleSend(content: string) {
   if (!content || isLoading.value) return;
@@ -74,20 +134,31 @@ async function handleSend(content: string) {
   };
   messages.value.push(userMessage);
 
+  // 创建 AI 回复消息（内容为空，逐步填充）
+  const botMessage: ChatMessage = {
+    id: generateId(),
+    type: 'bot',
+    content: '',
+    timestamp: Date.now(),
+  };
+  messages.value.push(botMessage);
+
   // 设置加载状态
   isLoading.value = true;
 
-  // 模拟 AI 回复
-  setTimeout(() => {
-    const botMessage: ChatMessage = {
-      id: generateId(),
-      type: 'bot',
-      content: getSimulatedReply(content),
-      timestamp: Date.now(),
-    };
-    messages.value.push(botMessage);
+  try {
+    // 调用 SSE 流式 API，实时更新消息内容
+    await streamChat(content, (token: string) => {
+      botMessage.content += token;
+      scrollToBottom();
+    });
+  } catch (error) {
+    console.error('[SSE] Error:', error);
+    botMessage.content = '抱歉，网络出现问题，请稍后重试。';
+  } finally {
     isLoading.value = false;
-  }, 1500);
+    scrollToBottom();
+  }
 }
 
 /**
@@ -139,25 +210,13 @@ function onScrollToUpper() {
 }
 
 /**
- * 获取模拟的 AI 回复
+ * 滚动到底部
  */
-function getSimulatedReply(question: string): string {
-  if (question.includes('ETF')) {
-    return 'ETF（交易型开放式指数基金）是一种跟踪指数、可以在交易所买卖的基金产品。请问您想了解哪方面的信息？';
-  }
-  if (question.includes('收益') || question.includes('赚')) {
-    return 'ETF的收益主要来源于所跟踪指数的涨跌。建议您关注长期投资，分散风险。需要我为您分析具体的ETF产品吗？';
-  }
-  if (question.includes('推荐')) {
-    return '根据您的风险偏好，我可以为您推荐一些宽基ETF产品，如沪深300ETF、中证500ETF等。请问您的投资偏好是什么？';
-  }
-  if (question.includes('风险')) {
-    return '投资ETF主要面临市场风险、流动性风险和跟踪误差风险。建议您根据自身风险承受能力选择合适的产品。';
-  }
-  if (question.includes('沪深300') || question.includes('510300')) {
-    return '沪深300ETF（510300）是跟踪沪深300指数的ETF产品，覆盖A股市场300只优质大盘股，是宽基指数基金的典型代表。';
-  }
-  return '感谢您的提问！我正在持续学习中，目前可以帮您解答ETF基础知识、市场行情等问题。请问还有什么可以帮助您的？';
+function scrollToBottom() {
+  nextTick(() => {
+    // 通过改变 scrollTop 值触发滚动
+    scrollTop.value = scrollTop.value + 1000;
+  });
 }
 </script>
 
