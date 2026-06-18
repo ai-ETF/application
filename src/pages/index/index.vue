@@ -58,6 +58,36 @@ const messageListRef = ref<InstanceType<typeof ChatMessageList> | null>(null);
 /** 滚动位置（用于触发滚动到底部） */
 const scrollTop = ref<number>(0);
 
+/** 当前会话 ID（用于继续已有会话） */
+const chatId = ref<string>('');
+
+/** 用户 ID（从本地存储获取或生成） */
+const userId = ref<string>('');
+
+// ==================== 初始化 ====================
+
+/**
+ * 初始化用户 ID
+ * @description 从本地存储获取，如果没有则生成一个并保存
+ */
+function initUserId() {
+  let id = uni.getStorageSync('user_id');
+  if (!id) {
+    // 生成 UUID 格式的用户 ID
+    id = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
+    uni.setStorageSync('user_id', id);
+  }
+  userId.value = id;
+  console.log('[IndexPage] 用户 ID:', id);
+}
+
+// 页面加载时初始化用户 ID
+initUserId();
+
 // ==================== 事件处理函数 ====================
 
 /**
@@ -65,15 +95,28 @@ const scrollTop = ref<number>(0);
  * @description 调用后端 SSE 接口，实时返回 AI 回复
  * @param question - 用户提问内容
  * @param onToken - 每个 token 的回调函数
- * @returns Promise<void>
+ * @returns Promise<string> - 返回 chat_id，用于后续会话
  */
-async function streamChat(question: string, onToken: (token: string) => void): Promise<void> {
-  const response = await fetch('http://47.113.220.182:8000/api/simple-chat', {
+async function streamChat(question: string, onToken: (token: string) => void): Promise<string> {
+  // 构建请求体
+  const requestBody: Record<string, string> = {
+    user_id: userId.value,
+    question,
+  };
+
+  // 如果有会话 ID，添加到请求中以继续已有会话
+  if (chatId.value) {
+    requestBody.chat_id = chatId.value;
+  }
+
+  console.log('[SSE] 发送请求:', requestBody);
+
+  const response = await fetch('http://47.113.220.182:8000/api/messages', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(requestBody),
   });
 
   if (!response.ok) {
@@ -87,6 +130,7 @@ async function streamChat(question: string, onToken: (token: string) => void): P
 
   const decoder = new TextDecoder();
   let buffer = '';
+  let newChatId = '';
 
   while (true) {
     const { done, value } = await reader.read();
@@ -104,8 +148,15 @@ async function streamChat(question: string, onToken: (token: string) => void): P
         try {
           const jsonStr = trimmedLine.slice(5).trim();
           const data = JSON.parse(jsonStr);
+
+          // 处理 token 类型的消息
           if (data.type === 'token' && data.content) {
             onToken(data.content);
+          }
+
+          // 提取 chat_id（如果响应中包含）
+          if (data.chat_id) {
+            newChatId = data.chat_id;
           }
         } catch (e) {
           // 解析失败，忽略该行
@@ -114,6 +165,8 @@ async function streamChat(question: string, onToken: (token: string) => void): P
       }
     }
   }
+
+  return newChatId;
 }
 
 /**
@@ -148,10 +201,16 @@ async function handleSend(content: string) {
 
   try {
     // 调用 SSE 流式 API，实时更新消息内容
-    await streamChat(content, (token: string) => {
+    const newChatId = await streamChat(content, (token: string) => {
       botMessage.content += token;
       scrollToBottom();
     });
+
+    // 保存会话 ID，用于后续消息
+    if (newChatId) {
+      chatId.value = newChatId;
+      console.log('[IndexPage] 会话 ID:', newChatId);
+    }
   } catch (error) {
     console.error('[SSE] Error:', error);
     botMessage.content = '抱歉，网络出现问题，请稍后重试。';
