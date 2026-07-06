@@ -5,6 +5,8 @@
  * 常用布局、样式混入，减少重复代码
  */
 
+@use "variables" as *;
+
 /**
  * Flex 布局混入
  * @description 快速设置 flex 布局属性

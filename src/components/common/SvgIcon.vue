@@ -33,11 +33,11 @@ import { computed } from 'vue';
  */
 interface Props {
   /** 图标名称 */
-  name: 'menu' | 'phone' | 'cast' | 'mic' | 'plus' | 'send' | 'search' | 'bookmark' | 'thermometer' | 'user';
+  name: 'menu' | 'phone' | 'cast' | 'mic' | 'plus' | 'send' | 'search' | 'bookmark' | 'thermometer' | 'user' | 'bell' | 'more-horizontal' | 'briefcase' | 'file-text' | 'clipboard' | 'message-square' | 'chevron-right' | 'clock';
   /** 图标尺寸，默认 48rpx */
   size?: string;
-  /** 图标颜色：primary/secondary/active/tertiary/white 或自定义颜色值 */
-  color?: 'primary' | 'secondary' | 'active' | 'tertiary' | 'white' | string;
+  /** 图标颜色：primary/secondary/active/brand/tertiary/white 或自定义颜色值 */
+  color?: 'primary' | 'secondary' | 'active' | 'brand' | 'tertiary' | 'white' | string;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -53,6 +53,7 @@ const colorValue = computed(() => {
     primary: '#2D1E16',
     secondary: '#78716C',
     active: '#B45309',
+    brand: '#B45309',
     tertiary: '#A8A29E',
     white: '#FFFFFF',
   };
@@ -111,6 +112,41 @@ const svgContent = computed(() => {
     user: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
       <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
       <circle cx="12" cy="7" r="4"></circle>
+    </svg>`,
+    bell: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+      <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+    </svg>`,
+    'more-horizontal': `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="1"></circle>
+      <circle cx="19" cy="12" r="1"></circle>
+      <circle cx="5" cy="12" r="1"></circle>
+    </svg>`,
+    briefcase: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="2" y="7" width="20" height="14" rx="2" ry="2"></rect>
+      <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path>
+    </svg>`,
+    'file-text': `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+      <line x1="16" y1="13" x2="8" y2="13"></line>
+      <line x1="16" y1="17" x2="8" y2="17"></line>
+      <polyline points="10 9 9 9 8 9"></polyline>
+    </svg>`,
+    clipboard: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+      <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
+      <path d="M9 14l2 2 4-4"></path>
+    </svg>`,
+    'message-square': `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+    </svg>`,
+    'chevron-right': `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>`,
+    clock: `<svg viewBox="0 0 24 24" fill="none" stroke="${colorValue.value}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"></circle>
+      <polyline points="12 6 12 12 16 14"></polyline>
     </svg>`,
   };
   return icons[props.name] || '';

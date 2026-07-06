@@ -3,9 +3,6 @@
  * 自选页 - 关注/持仓列表
  * ============================================
  * 展示用户关注的 ETF 列表和持仓信息
- * 设计稿参考：
- * - 关注 Tab: pencil/followPage.pen
- * - 持仓 Tab: pencil/positionCheck.pen
  *
  * 页面结构：
  * - 顶部 Tab 切换：关注 | 持仓
@@ -14,17 +11,17 @@
  * - 底部导航：TabBar 组件
  *
  * 设计风格：
- * - 背景色：#F9F6F0（温暖米色）
- * - 卡片背景：#FFFFFF
- * - 卡片边框：#E8E3DA
- * - 涨：#FF4444 / #D94C4C（红色）
- * - 跌：#00AA44（绿色）
+ * - 背景色：$color-bg-primary（温暖米色）
+ * - 卡片背景：$color-bg-card
+ * - 卡片边框：$color-border-card
+ * - 涨：$color-up（红色）
+ * - 跌：$color-down（绿色）
  */
+
 <template>
   <view class="page-container">
     <!-- ==================== 顶部 Tab 切换 ==================== -->
     <view class="top-tab">
-      <!-- 关注 Tab -->
       <view
         class="tab-item"
         :class="{ 'tab-item--active': activeTab === 'follow' }"
@@ -33,7 +30,6 @@
         <text class="tab-text">关注</text>
         <view v-if="activeTab === 'follow'" class="tab-indicator"></view>
       </view>
-      <!-- 持仓 Tab -->
       <view
         class="tab-item"
         :class="{ 'tab-item--active': activeTab === 'position' }"
@@ -49,7 +45,7 @@
       <!-- 搜索框 -->
       <view class="search-section">
         <view class="search-bar">
-          <text class="search-icon">🔍</text>
+          <SvgIcon name="search" size="36rpx" color="tertiary" />
           <input
             v-model="searchKeyword"
             class="search-input"
@@ -63,7 +59,7 @@
       <!-- 列表标题行 -->
       <view class="list-header">
         <text class="header-text header-name">标的</text>
-        <text class="header-text">走势</text>
+        <text class="header-text header-trend">走势</text>
         <text class="header-text header-price">最新价</text>
         <text class="header-text header-ytd">年初至今</text>
       </view>
@@ -71,18 +67,16 @@
       <!-- ETF 列表（可滚动） -->
       <scroll-view class="list-scroll" scroll-y>
         <view class="etf-list">
-          <!-- ETF 列表项：循环渲染 -->
           <view
             v-for="item in filteredEtfList"
             :key="item.etfCode"
             class="etf-item"
             @tap="handleEtfClick(item)"
           >
-            <!-- 标的信息：名称 + 市场标签 + 代码 -->
+            <!-- 标的信息 -->
             <view class="etf-info">
               <text class="etf-name">{{ item.etfName }}</text>
               <view class="etf-meta">
-                <!-- 市场标签：沪/深 -->
                 <view class="market-tag">{{ item.market }}</view>
                 <text class="etf-code">{{ item.etfCode }}</text>
               </view>
@@ -107,14 +101,15 @@
           </view>
         </view>
 
-        <!-- 空状态提示 -->
+        <!-- 空状态 -->
         <view v-if="filteredEtfList.length === 0" class="empty-state">
-          <text class="empty-icon">📭</text>
+          <view class="empty-icon-box">
+            <SvgIcon name="bookmark" size="64rpx" color="tertiary" />
+          </view>
           <text class="empty-text">暂无关注的 ETF</text>
           <text class="empty-hint">搜索并添加您感兴趣的 ETF</text>
         </view>
 
-        <!-- 底部占位，防止内容被 TabBar 遮挡 -->
         <view class="scroll-bottom-placeholder"></view>
       </scroll-view>
     </view>
@@ -124,20 +119,24 @@
       <scroll-view class="list-scroll" scroll-y>
         <!-- 资产总览卡片 -->
         <view class="asset-card">
-          <!-- 标题行：投资总金额 + 操作按钮 -->
           <view class="card-header">
-            <text class="card-title">投资总金额</text>
+            <view class="card-title-row">
+              <SvgIcon name="briefcase" size="36rpx" color="primary" />
+              <text class="card-title">投资总金额</text>
+            </view>
             <view class="header-actions">
               <view class="action-btn" @tap="handleAssetDiag">
+                <SvgIcon name="thermometer" size="28rpx" color="secondary" />
                 <text class="action-text">资产诊断</text>
               </view>
               <view class="action-btn" @tap="handleShare">
+                <SvgIcon name="send" size="28rpx" color="secondary" />
                 <text class="action-text">晒一晒</text>
               </view>
             </view>
           </view>
 
-          <!-- 金额展示区域 -->
+          <!-- 金额展示 -->
           <view class="amount-section">
             <text class="amount-value">¥ {{ totalAmount.toLocaleString() }}</text>
             <text class="amount-label">总资产</text>
@@ -145,13 +144,12 @@
 
           <!-- 更新时间行 -->
           <view class="update-section">
+            <SvgIcon name="clock" size="24rpx" color="tertiary" />
             <text class="update-text">数据更新于 {{ updateDate }}</text>
-            <text class="update-icon">⚠️</text>
           </view>
 
-          <!-- 收益统计行：三列布局 -->
+          <!-- 收益统计行 -->
           <view class="earnings-row">
-            <!-- 最新收益 -->
             <view class="earnings-item">
               <text class="earnings-value" :class="latestEarnings.amount >= 0 ? 'profit' : 'loss'">
                 {{ latestEarnings.amount >= 0 ? '+' : '' }}{{ latestEarnings.amount.toLocaleString() }}
@@ -161,7 +159,7 @@
               </text>
               <text class="earnings-label">最新收益</text>
             </view>
-            <!-- 持有收益 -->
+            <view class="earnings-divider"></view>
             <view class="earnings-item">
               <text class="earnings-value" :class="holdingEarnings.amount >= 0 ? 'profit' : 'loss'">
                 {{ holdingEarnings.amount >= 0 ? '+' : '' }}{{ holdingEarnings.amount.toLocaleString() }}
@@ -171,7 +169,7 @@
               </text>
               <text class="earnings-label">持有收益</text>
             </view>
-            <!-- 累计收益 -->
+            <view class="earnings-divider"></view>
             <view class="earnings-item">
               <text class="earnings-value" :class="cumulativeEarnings.amount >= 0 ? 'profit' : 'loss'">
                 {{ cumulativeEarnings.amount >= 0 ? '+' : '' }}{{ cumulativeEarnings.amount.toLocaleString() }}
@@ -186,6 +184,7 @@
 
         <!-- 持仓列表标题 -->
         <view class="position-list-title">
+          <SvgIcon name="clipboard" size="32rpx" color="primary" />
           <text class="title-text">持仓明细</text>
         </view>
 
@@ -207,14 +206,15 @@
           />
         </view>
 
-        <!-- 空状态提示 -->
+        <!-- 空状态 -->
         <view v-if="positionList.length === 0" class="empty-state">
-          <text class="empty-icon">📊</text>
+          <view class="empty-icon-box">
+            <SvgIcon name="briefcase" size="64rpx" color="tertiary" />
+          </view>
           <text class="empty-text">暂无持仓</text>
           <text class="empty-hint">开始您的 ETF 投资之旅</text>
         </view>
 
-        <!-- 底部占位 -->
         <view class="scroll-bottom-placeholder"></view>
       </scroll-view>
     </view>
@@ -227,6 +227,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import TabBar from '@/components/common/TabBar.vue';
+import SvgIcon from '@/components/common/SvgIcon.vue';
 import PositionItem from '@/components/business/PositionItem.vue';
 import type { WatchlistItem, HoldingItem } from '@/types/models.d';
 
@@ -238,170 +239,74 @@ const activeTab = ref<'follow' | 'position'>('follow');
 /** 搜索关键词 */
 const searchKeyword = ref<string>('');
 
-/**
- * 关注列表（模拟数据）
- * @description 实际项目中应从 API 获取或从 Store 读取
- */
+/** 关注列表（模拟数据） */
 const etfList = ref<WatchlistItem[]>([
-  {
-    etfName: '沪深300ETF',
-    etfCode: '510300',
-    market: '沪',
-    latestPrice: 5.128,
-    changePercent: 0.45,
-    ytdChange: 12.45,
-  },
-  {
-    etfName: '中证500ETF',
-    etfCode: '510500',
-    market: '沪',
-    latestPrice: 6.842,
-    changePercent: 0.92,
-    ytdChange: 8.92,
-  },
-  {
-    etfName: '科创50ETF',
-    etfCode: '588000',
-    market: '沪',
-    latestPrice: 1.235,
-    changePercent: -0.32,
-    ytdChange: -5.67,
-  },
-  {
-    etfName: '创业板ETF',
-    etfCode: '159915',
-    market: '深',
-    latestPrice: 2.156,
-    changePercent: 1.25,
-    ytdChange: 15.32,
-  },
+  { etfName: '沪深300ETF', etfCode: '510300', market: '沪', latestPrice: 5.128, changePercent: 0.45, ytdChange: 12.45 },
+  { etfName: '中证500ETF', etfCode: '510500', market: '沪', latestPrice: 6.842, changePercent: 0.92, ytdChange: 8.92 },
+  { etfName: '科创50ETF', etfCode: '588000', market: '沪', latestPrice: 1.235, changePercent: -0.32, ytdChange: -5.67 },
+  { etfName: '创业板ETF', etfCode: '159915', market: '深', latestPrice: 2.156, changePercent: 1.25, ytdChange: 15.32 },
 ]);
 
-/**
- * 持仓列表（模拟数据）
- * @description 实际项目中应从 API 获取
- */
+/** 持仓列表（模拟数据） */
 const positionList = ref<HoldingItem[]>([
-  {
-    fundName: '易方达科创50A (510300)',
-    fundCode: '510300',
-    holdingAmount: 50000,
-    holdingShares: 45678.9,
-    dailyProfit: 125,
-    dailyProfitPercent: 0.25,
-    totalProfit: 1250,
-    totalProfitPercent: 2.5,
-    updateDate: '2 月 27 日',
-  },
-  {
-    fundName: '南方有色金属A (160526)',
-    fundCode: '160526',
-    holdingAmount: 30000,
-    holdingShares: 28456.78,
-    dailyProfit: -45,
-    dailyProfitPercent: -0.15,
-    totalProfit: 900,
-    totalProfitPercent: 3.0,
-    updateDate: '2 月 27 日',
-  },
+  { fundName: '易方达科创50A (510300)', fundCode: '510300', holdingAmount: 50000, holdingShares: 45678.9, dailyProfit: 125, dailyProfitPercent: 0.25, totalProfit: 1250, totalProfitPercent: 2.5, updateDate: '2 月 27 日' },
+  { fundName: '南方有色金属A (160526)', fundCode: '160526', holdingAmount: 30000, holdingShares: 28456.78, dailyProfit: -45, dailyProfitPercent: -0.15, totalProfit: 900, totalProfitPercent: 3.0, updateDate: '2 月 27 日' },
 ]);
 
 /** 资产总金额 */
 const totalAmount = ref<number>(245000);
-
 /** 数据更新日期 */
 const updateDate = ref<string>('2 月 27 日 15:30');
-
 /** 最新收益 */
 const latestEarnings = ref({ amount: 1235, percent: 0.52 });
-
 /** 持有收益 */
 const holdingEarnings = ref({ amount: 2456, percent: 1.08 });
-
 /** 累计收益 */
 const cumulativeEarnings = ref({ amount: 5678, percent: 2.34 });
 
 // ==================== 计算属性 ====================
 
-/**
- * 根据搜索关键词过滤的 ETF 列表
- * @description 支持按名称或代码搜索
- */
 const filteredEtfList = computed(() => {
-  if (!searchKeyword.value.trim()) {
-    return etfList.value;
-  }
+  if (!searchKeyword.value.trim()) return etfList.value;
   const keyword = searchKeyword.value.toLowerCase();
   return etfList.value.filter(
-    item =>
-      item.etfName.toLowerCase().includes(keyword) ||
-      item.etfCode.includes(keyword)
+    item => item.etfName.toLowerCase().includes(keyword) || item.etfCode.includes(keyword)
   );
 });
 
 // ==================== 方法 ====================
 
-/**
- * 格式化价格
- * @param price - 原始价格
- * @returns 格式化后的价格字符串（保留3位小数）
- */
 function formatPrice(price: number): string {
   return price.toFixed(3);
 }
 
-/**
- * 格式化年初至今涨跌幅
- * @param value - 涨跌数值（百分比）
- * @returns 格式化后的涨跌幅字符串
- */
 function formatYtd(value: number): string {
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
 }
 
-/**
- * 切换 Tab
- * @param tab - 目标 Tab 标识
- */
 function switchTab(tab: 'follow' | 'position') {
   activeTab.value = tab;
   console.log(`[WatchlistPage] 切换 Tab: ${tab}`);
 }
 
-/**
- * ETF 项点击
- * @param item - 点击的 ETF 数据
- */
 function handleEtfClick(item: WatchlistItem) {
   console.log(`[WatchlistPage] 点击 ETF: ${item.etfName} (${item.etfCode})`);
-  // TODO: 跳转到 ETF 详情页
   uni.showToast({ title: `${item.etfName} 详情页开发中`, icon: 'none' });
 }
 
-/**
- * 资产诊断按钮点击
- */
 function handleAssetDiag() {
   console.log('[WatchlistPage] 点击资产诊断');
   uni.showToast({ title: '资产诊断功能开发中', icon: 'none' });
 }
 
-/**
- * 晒一晒按钮点击
- */
 function handleShare() {
   console.log('[WatchlistPage] 点击晒一晒');
   uni.showToast({ title: '分享功能开发中', icon: 'none' });
 }
 
-/**
- * 持仓项点击
- * @param fundName - 基金名称
- */
 function handlePositionClick(fundName: string) {
   console.log(`[WatchlistPage] 点击持仓: ${fundName}`);
-  // TODO: 跳转到持仓详情页
 }
 </script>
 
@@ -411,46 +316,43 @@ function handlePositionClick(fundName: string) {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  background-color: #F9F6F0;
+  background-color: $color-bg-primary;
 }
 
 /* ==================== 顶部 Tab 样式 ==================== */
 .top-tab {
   display: flex;
   height: 96rpx;
-  background-color: #F9F6F0;
+  background-color: $color-bg-primary;
+  padding: 0 $spacing-xl;
+  gap: $spacing-xl;
 }
 
 .tab-item {
   flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
+  @include flex(column, center, center);
   position: relative;
-  transition: all 0.2s ease;
+  transition: all $transition-fast $ease-in-out;
 }
 
 .tab-text {
-  font-size: 32rpx;
-  font-weight: 400;
-  color: #999999;
-  transition: all 0.2s ease;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-normal;
+  color: $color-text-tertiary;
+  transition: all $transition-fast $ease-in-out;
 }
 
-/* Tab 激活状态 */
 .tab-item--active .tab-text {
-  font-weight: 600;
-  color: #2D1E16;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
 }
 
-/* Tab 指示器：激活时显示的底部横线 */
 .tab-indicator {
   position: absolute;
   bottom: 0;
   width: 48rpx;
   height: 4rpx;
-  background-color: #2D1E16;
+  background-color: $color-text-primary;
   border-radius: 2rpx;
 }
 
@@ -464,48 +366,53 @@ function handlePositionClick(fundName: string) {
 
 /* ==================== 搜索框样式 ==================== */
 .search-section {
-  padding: 24rpx 32rpx 16rpx;
+  padding: $spacing-md $spacing-base $spacing-sm;
 }
 
 .search-bar {
-  display: flex;
-  align-items: center;
-  height: 88rpx;
-  padding: 0 32rpx;
-  background-color: #FFFFFF;
-  border-radius: 44rpx;
-  border: 2rpx solid #E0E0E0;
-}
+  @include pill-button;
+  gap: $spacing-sm;
+  padding: 0 $spacing-base;
+  border: 2rpx solid $color-border;
+  box-shadow: $shadow-sm;
+  transition: all $transition-fast $ease-in-out;
 
-.search-icon {
-  font-size: 32rpx;
-  margin-right: 16rpx;
+  &:focus-within {
+    border-color: $color-brand-primary;
+    box-shadow: 0 0 0 4rpx rgba($color-brand-primary, 0.1);
+  }
 }
 
 .search-input {
   flex: 1;
-  font-size: 28rpx;
-  color: #2D1E16;
+  font-size: $font-size-base;
+  color: $color-text-primary;
 }
 
 .search-placeholder {
-  color: #999999;
+  color: $color-text-tertiary;
 }
 
 /* ==================== 列表标题行 ==================== */
 .list-header {
-  display: flex;
-  align-items: center;
-  padding: 16rpx 32rpx;
+  @include flex(row, flex-start, center);
+  padding: $spacing-sm $spacing-base;
+  gap: 0;
 }
 
 .header-text {
-  font-size: 24rpx;
-  color: #999999;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
+  font-weight: $font-weight-medium;
 }
 
 .header-name {
   width: 200rpx;
+}
+
+.header-trend {
+  width: 120rpx;
+  text-align: center;
 }
 
 .header-price {
@@ -521,23 +428,21 @@ function handlePositionClick(fundName: string) {
 /* ==================== ETF 列表样式 ==================== */
 .list-scroll {
   flex: 1;
-  padding: 0 32rpx;
+  padding: 0 $spacing-base;
 }
 
 .etf-list {
   display: flex;
   flex-direction: column;
-  gap: 16rpx;
+  gap: $spacing-sm;
 }
 
-/* ETF 列表项：白色卡片样式 */
 .etf-item {
-  display: flex;
-  align-items: center;
-  padding: 24rpx;
-  background-color: #FFFFFF;
-  border-radius: 24rpx;
-  transition: all 0.2s ease;
+  @include flex(row, flex-start, center);
+  padding: $spacing-md $spacing-base;
+  @include card($radius: $radius-md);
+  box-shadow: $shadow-sm;
+  transition: all $transition-fast $ease-in-out;
 
   &:active {
     opacity: 0.9;
@@ -545,266 +450,258 @@ function handlePositionClick(fundName: string) {
   }
 }
 
-/* ETF 信息区域 */
 .etf-info {
   width: 200rpx;
 }
 
 .etf-name {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #2D1E16;
+  font-size: $font-size-base;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
 }
 
 .etf-meta {
-  display: flex;
-  align-items: center;
-  gap: 8rpx;
-  margin-top: 8rpx;
+  @include flex(row, flex-start, center);
+  gap: $spacing-xs;
+  margin-top: $spacing-xs;
 }
 
-/* 市场标签：沪/深 */
 .market-tag {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
   min-width: 32rpx;
   height: 36rpx;
-  padding: 0 12rpx;
-  background-color: #EFEAE2;
-  border-radius: 8rpx;
-  font-size: 20rpx;
-  color: #000000;
+  padding: 0 $spacing-sm;
+  background-color: $color-brand-bg;
+  border-radius: $radius-sm;
+  font-size: $font-size-xs;
+  color: $color-brand-primary;
+  font-weight: $font-weight-medium;
 }
 
 .etf-code {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
 }
 
-/* 迷你走势图占位 */
 .mini-chart {
   width: 120rpx;
   height: 60rpx;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
 }
 
 .chart-placeholder {
-  font-size: 24rpx;
-  color: #CCCCCC;
+  font-size: $font-size-sm;
+  color: $color-border;
 }
 
-/* 价格区域 */
 .price-section {
   width: 120rpx;
   text-align: right;
 }
 
 .etf-price {
-  font-size: 28rpx;
-  font-weight: 600;
-  color: #2D1E16;
+  font-size: $font-size-base;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
 }
 
-/* 年初至今涨跌幅区域 */
 .ytd-section {
   width: 140rpx;
-  display: flex;
-  justify-content: flex-end;
+  @include flex(row, flex-end, center);
 }
 
-/* 涨跌幅标签 */
 .ytd-badge {
-  padding: 8rpx 16rpx;
-  border-radius: 24rpx;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $radius-full;
 }
 
 .ytd-badge.profit {
-  background-color: #FDECEC;
+  background-color: $color-up-bg;
 }
 
 .ytd-badge.loss {
-  background-color: #E8F8EE;
+  background-color: $color-down-bg;
 }
 
 .ytd-text {
-  font-size: 24rpx;
-  font-weight: 600;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-semibold;
 }
 
 .ytd-badge.profit .ytd-text {
-  color: #D94C4C;
+  color: $color-up;
 }
 
 .ytd-badge.loss .ytd-text {
-  color: #00AA44;
+  color: $color-down;
 }
 
 /* ==================== 资产卡片样式 ==================== */
 .asset-card {
-  background-color: #FFFFFF;
-  border-radius: 32rpx;
-  padding: 40rpx;
-  margin: 24rpx 0;
-  border: 2rpx solid #E8E3DA;
+  @include card;
+  padding: $card-padding;
+  margin: $spacing-md 0;
+  box-shadow: $shadow-base;
 }
 
-/* 卡片标题行 */
 .card-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @include flex(row, space-between, center);
+}
+
+.card-title-row {
+  @include flex(row, flex-start, center);
+  gap: $spacing-sm;
 }
 
 .card-title {
-  font-size: 36rpx;
-  font-weight: 600;
-  color: #000000;
+  font-size: $font-size-2xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
 }
 
 .header-actions {
-  display: flex;
-  gap: 16rpx;
+  @include flex(row, flex-end, center);
+  gap: $spacing-sm;
 }
 
-/* 操作按钮 */
 .action-btn {
-  padding: 12rpx 24rpx;
-  border: 2rpx solid #CCCCCC;
-  border-radius: 16rpx;
-  transition: all 0.2s ease;
+  @include flex(row, center, center);
+  gap: $spacing-xs;
+  padding: $spacing-sm $spacing-md;
+  border: 2rpx solid $color-border;
+  border-radius: $radius-base;
+  transition: all $transition-fast $ease-in-out;
 
   &:active {
     opacity: 0.8;
-    background-color: #F5F5F5;
+    background-color: $color-border-light;
   }
 }
 
 .action-text {
-  font-size: 24rpx;
-  color: #666666;
+  font-size: $font-size-sm;
+  color: $color-text-secondary;
 }
 
 /* 金额展示区域 */
 .amount-section {
-  margin-top: 32rpx;
+  margin-top: $spacing-base;
   text-align: center;
 }
 
 .amount-value {
-  font-size: 72rpx;
-  font-weight: 700;
-  color: #000000;
+  font-size: $font-size-4xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
 }
 
 .amount-label {
   display: block;
-  font-size: 28rpx;
-  color: #999999;
-  margin-top: 8rpx;
+  font-size: $font-size-base;
+  color: $color-text-tertiary;
+  margin-top: $spacing-xs;
 }
 
 /* 更新时间行 */
 .update-section {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 8rpx;
-  margin-top: 16rpx;
+  @include flex(row, center, center);
+  gap: $spacing-xs;
+  margin-top: $spacing-sm;
 }
 
 .update-text {
-  font-size: 24rpx;
-  color: #999999;
-}
-
-.update-icon {
-  font-size: 24rpx;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
 }
 
 /* 收益统计行 */
 .earnings-row {
-  display: flex;
-  justify-content: space-around;
-  margin-top: 32rpx;
-  padding-top: 32rpx;
-  border-top: 2rpx solid #F0F0F0;
+  @include flex(row, space-around, stretch);
+  margin-top: $spacing-base;
+  padding-top: $spacing-base;
+  border-top: 2rpx solid $color-border-light;
 }
 
 .earnings-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 8rpx;
+  @include flex(column, center, center);
+  gap: $spacing-xs;
+  flex: 1;
+}
+
+.earnings-divider {
+  width: 2rpx;
+  background-color: $color-border-light;
+  margin: $spacing-xs 0;
 }
 
 .earnings-value {
-  font-size: 32rpx;
-  font-weight: 700;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-bold;
 }
 
 .earnings-percent {
-  font-size: 24rpx;
+  font-size: $font-size-sm;
 }
 
 .earnings-value.profit,
 .earnings-percent.profit {
-  color: #FF4444;
+  color: $color-up;
 }
 
 .earnings-value.loss,
 .earnings-percent.loss {
-  color: #00AA44;
+  color: $color-down;
 }
 
 .earnings-label {
-  font-size: 22rpx;
-  color: #999999;
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
 }
 
 /* ==================== 持仓列表样式 ==================== */
 .position-list-title {
-  padding: 24rpx 0 16rpx;
+  @include flex(row, flex-start, center);
+  gap: $spacing-sm;
+  padding: $spacing-md 0 $spacing-sm;
 }
 
 .title-text {
-  font-size: 32rpx;
-  font-weight: 600;
-  color: #2D1E16;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
 }
 
 .position-list {
   display: flex;
   flex-direction: column;
-  gap: 24rpx;
+  gap: $spacing-md;
 }
 
 /* ==================== 空状态样式 ==================== */
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 120rpx 0;
+  @include flex(column, center, center);
+  padding: 160rpx 0;
 }
 
-.empty-icon {
-  font-size: 80rpx;
-  margin-bottom: 24rpx;
+.empty-icon-box {
+  @include flex-center;
+  width: 120rpx;
+  height: 120rpx;
+  background-color: $color-brand-bg;
+  border-radius: $radius-circle;
+  margin-bottom: $spacing-md;
 }
 
 .empty-text {
-  font-size: 32rpx;
-  font-weight: 500;
-  color: #666666;
-  margin-bottom: 12rpx;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-medium;
+  color: $color-text-secondary;
+  margin-bottom: $spacing-sm;
 }
 
 .empty-hint {
-  font-size: 26rpx;
-  color: #999999;
+  font-size: $font-size-base;
+  color: $color-text-tertiary;
 }
 
 /* ==================== 底部占位 ==================== */
