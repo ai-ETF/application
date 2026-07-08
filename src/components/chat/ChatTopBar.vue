@@ -1,30 +1,59 @@
 /**
  * ============================================
- * 聊天顶部栏组件
+ * 聊天顶部栏组件 — 重构版
  * ============================================
- * 聊天页面的顶部导航栏
- *
- * 结构：
- * - 左侧：菜单按钮 + 标题区域
- * - 右侧：操作按钮（电话、投屏）
+ * 暖琥珀色系，呼应品牌调性
+ * 左侧菜单+标题，右侧快捷操作
  */
+
 <template>
   <view class="top-bar">
-    <!-- 左侧：菜单按钮 + 标题 -->
+    <!-- 左侧：菜单按钮 + 品牌区域 -->
     <view class="left-area">
+      <!-- 菜单按钮 — 毛玻璃卡牌风格 -->
       <view class="menu-btn" @tap="handleMenuClick">
-        <SvgIcon name="menu" size="48rpx" color="primary" />
+        <view class="menu-btn__inner">
+          <view class="menu-icon-bar" />
+          <view class="menu-icon-bar menu-icon-bar--short" />
+          <view class="menu-icon-bar menu-icon-bar--shortest" />
+        </view>
       </view>
-      <view class="title-area">
-        <text class="main-title">{{ title }}</text>
-        <text class="sub-title">{{ subtitle }}</text>
+
+      <!-- 品牌区：Logo + 文字 -->
+      <view class="brand-area">
+        <!-- AI 图标点缀 -->
+        <view class="brand-icon-wrap">
+          <SvgIcon name="bot" size="36rpx" color="white" />
+        </view>
+        <view class="brand-text-area">
+          <view class="brand-title-row">
+            <text class="brand-title">小E</text>
+            <view class="brand-badge">AI</view>
+          </view>
+          <view class="status-row">
+            <view class="status-dot" />
+            <text class="status-text">在线 · 投资助手</text>
+          </view>
+        </view>
       </view>
     </view>
 
-    <!-- 右侧：操作按钮 -->
-    <view class="action-btn">
-      <SvgIcon name="phone" size="40rpx" color="primary" @tap="handlePhoneClick" />
-      <SvgIcon name="cast" size="40rpx" color="primary" @tap="handleCastClick" />
+    <!-- 右侧：操作按钮组 -->
+    <view class="right-actions">
+      <!-- 新会话（脑洞/灵感） -->
+      <view class="action-btn" @tap="handleNewChatClick">
+        <SvgIcon name="plus" size="36rpx" color="primary" />
+      </view>
+
+      <!-- 电话 -->
+      <view class="action-btn" @tap="handlePhoneClick">
+        <SvgIcon name="phone" size="36rpx" color="primary" />
+      </view>
+
+      <!-- 投屏 -->
+      <view class="action-btn" @tap="handleCastClick">
+        <SvgIcon name="cast" size="36rpx" color="primary" />
+      </view>
     </view>
   </view>
 </template>
@@ -32,105 +61,243 @@
 <script setup lang="ts">
 import SvgIcon from '@/components/common/SvgIcon.vue';
 
-/**
- * 组件属性
- */
-interface Props {
-  /** 主标题 */
+defineProps<{
+  /** 当前会话标题（可选） */
   title?: string;
-  /** 副标题 */
-  subtitle?: string;
-}
+}>();
 
-withDefaults(defineProps<Props>(), {
-  title: '小E',
-  subtitle: '您的ETF投资助手',
-});
-
-/**
- * 组件事件
- */
 const emit = defineEmits<{
   (e: 'menu'): void;
+  (e: 'new-chat'): void;
   (e: 'phone'): void;
   (e: 'cast'): void;
 }>();
 
-function handleMenuClick() {
-  emit('menu');
-}
-
-function handlePhoneClick() {
-  emit('phone');
-}
-
-function handleCastClick() {
-  emit('cast');
-}
+function handleMenuClick() { emit('menu'); }
+function handleNewChatClick() { emit('new-chat'); }
+function handlePhoneClick() { emit('phone'); }
+function handleCastClick() { emit('cast'); }
 </script>
 
 <style lang="scss" scoped>
+/* ============================================
+ * 顶部栏容器 — 暖琥珀渐变底
+ * ============================================ */
 .top-bar {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-base $spacing-lg;
+  padding: $spacing-sm $spacing-base $spacing-sm;
+  position: relative;
+  z-index: 10;
+
+  /* 纯色背景，与页面一致 */
   background-color: $color-bg-primary;
+
+  /* 底部精细分隔线 — 渐隐效果 */
+  &::after {
+    content: '';
+    position: absolute;
+    left: $spacing-base;
+    right: $spacing-base;
+    bottom: 0;
+    height: 2rpx;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba($color-brand-primary, 0.15) 50%,
+      transparent 100%
+    );
+  }
 }
 
+/* ============================================
+ * 左侧区域
+ * ============================================ */
 .left-area {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  gap: $spacing-base;
+  gap: $spacing-md;
 }
 
+/* ============================================
+ * 菜单按钮 — 琥珀暖调卡片
+ * ============================================ */
 .menu-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: $btn-icon-size;
-  height: $btn-icon-size;
-  background-color: $color-bg-secondary;
-  border-radius: $radius-lg;
-  border: 2rpx solid $color-border;
+  width: 88rpx;
+  height: 88rpx;
+  background: linear-gradient(135deg, $color-bg-card, $color-bg-primary);
+  border-radius: 24rpx;
+  border: 2rpx solid rgba($color-border, 0.6);
+  box-shadow:
+    0 2rpx 8rpx rgba($color-brand-primary, 0.06),
+    inset 0 1rpx 0 rgba(255, 255, 255, 0.6);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
+  /* 点击反馈 */
   &:active {
-    opacity: 0.8;
-    transform: scale(0.98);
+    transform: scale(0.94);
+    box-shadow:
+      0 1rpx 4rpx rgba($color-brand-primary, 0.08),
+      inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
   }
 }
 
-.title-area {
+.menu-btn__inner {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7rpx;
+  width: 40rpx;
+  height: 40rpx;
+}
+
+/* 三条横线 — 非对称设计 */
+.menu-icon-bar {
+  width: 100%;
+  height: 4rpx;
+  background: linear-gradient(90deg, $color-brand-primary, $color-brand-light);
+  border-radius: 4rpx;
+  transition: all 0.2s ease;
+}
+
+.menu-icon-bar--short {
+  width: 66%;
+  align-self: flex-start;
+}
+
+.menu-icon-bar--shortest {
+  width: 80%;
+  align-self: flex-end;
+}
+
+/* ============================================
+ * 品牌区域 — Logo + 小E文字
+ * ============================================ */
+.brand-area {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: $spacing-sm;
+}
+
+/* AI 图标外圈 — 琥珀渐变圆 */
+.brand-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64rpx;
+  height: 64rpx;
+  background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
+  border-radius: 18rpx;
+  box-shadow: 0 4rpx 12rpx rgba($color-brand-primary, 0.25);
+  position: relative;
+
+  /* 发光光晕 */
+  &::after {
+    content: '';
+    position: absolute;
+    inset: -4rpx;
+    border-radius: 22rpx;
+    background: linear-gradient(135deg, $color-brand-light, transparent);
+    opacity: 0.25;
+    z-index: -1;
+  }
+}
+
+.brand-text-area {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.brand-title-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
   gap: $spacing-xs;
 }
 
-.main-title {
+.brand-title {
   font-size: $font-size-2xl;
   font-weight: $font-weight-bold;
   color: $color-text-primary;
+  letter-spacing: 1rpx;
+  line-height: 1.2;
+}
+
+.brand-badge {
+  font-size: 18rpx;
+  font-weight: $font-weight-semibold;
+  color: $color-brand-primary;
+  background: rgba($color-brand-primary, 0.1);
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
+  letter-spacing: 0.5rpx;
+  line-height: 1.4;
+}
+
+.status-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+.status-dot {
+  width: 10rpx;
+  height: 10rpx;
+  background: linear-gradient(135deg, #22C55E, #16A34A);
+  border-radius: 50%;
+  box-shadow: 0 0 8rpx rgba(#22C55E, 0.5);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+/* 呼吸光效 */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.status-text {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
   letter-spacing: 0.5rpx;
 }
 
-.sub-title {
-  font-size: $font-size-base;
-  color: $color-text-secondary;
+/* ============================================
+ * 右侧操作按钮组
+ * ============================================ */
+.right-actions {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: $spacing-xs;
 }
 
 .action-btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: $spacing-md;
-  height: $action-btn-height;
-  padding: 0 $spacing-base;
-  background-color: $color-bg-secondary;
-  border-radius: $radius-full;
-  border: 2rpx solid $color-border;
+  width: 80rpx;
+  height: 80rpx;
+  border-radius: 20rpx;
+  background: $color-bg-card;
+  border: 2rpx solid rgba($color-border, 0.4);
+  box-shadow: 0 2rpx 6rpx rgba($color-brand-primary, 0.04);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
   &:active {
-    opacity: 0.8;
+    transform: scale(0.92);
+    background: $color-brand-bg;
+    border-color: rgba($color-brand-primary, 0.2);
+    box-shadow: 0 2rpx 8rpx rgba($color-brand-primary, 0.12);
   }
 }
 </style>

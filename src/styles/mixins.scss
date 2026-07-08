@@ -5,6 +5,7 @@
  * 常用布局、样式混入，减少重复代码
  */
 
+@use "sass:math";
 @use "variables" as *;
 
 /**
@@ -88,7 +89,7 @@
   align-items: center;
   height: $height;
   background-color: $bg;
-  border-radius: $height / 2;
+  border-radius: math.div($height, 2);
 }
 
 /**

@@ -16,10 +16,11 @@
     scroll-y
     :scroll-top="scrollTop"
     @scrolltoupper="onScrollToUpper"
+    @scroll="onScroll"
   >
-    <!-- 欢迎消息 -->
+    <!-- 欢迎消息 — 仅当无消息时显示 -->
     <ChatMessageBubble
-      v-if="showWelcome"
+      v-if="showWelcome && messages.length === 0"
       :message="welcomeMessage"
     />
 
@@ -82,6 +83,11 @@ const welcomeMessage: ChatMessage = {
 /** 滚动到顶部事件 */
 function onScrollToUpper() {
   emit('scroll-to-upper');
+}
+
+/** 滚动事件处理 — 调试用 */
+function onScroll(e: any) {
+  // 空函数，仅占位
 }
 
 /** 滚动到底部 */
