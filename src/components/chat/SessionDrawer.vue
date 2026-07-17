@@ -3,7 +3,7 @@
  * 会话列表侧滑抽屉组件
  * ============================================
  * 从左侧滑出的会话列表面板
- * 展示所有历史会话，支持切换和新建
+ * 展示所有历史会话，支持切换、新建和搜索
  */
 
 <template>
@@ -27,10 +27,34 @@
       </view>
     </view>
 
+    <!-- 搜索框 -->
+    <view class="search-box">
+      <view class="search-input-wrapper">
+        <SvgIcon name="search" size="32rpx" color="tertiary" />
+        <input
+          v-model="searchKeyword"
+          class="search-input"
+          type="text"
+          placeholder="搜索会话..."
+          placeholder-class="search-placeholder"
+          confirm-type="search"
+          @confirm="handleSearch"
+        />
+        <!-- 清除按钮 -->
+        <view
+          v-if="searchKeyword"
+          class="search-clear"
+          @tap="clearSearch"
+        >
+          <text class="search-clear-icon">×</text>
+        </view>
+      </view>
+    </view>
+
     <!-- 会话列表 -->
     <scroll-view class="session-list" scroll-y>
       <view
-        v-for="session in sessions"
+        v-for="session in filteredSessions"
         :key="session.id"
         class="session-item"
         :class="{ 'session-item--active': session.id === currentChatId }"
@@ -63,10 +87,10 @@
       </view>
 
       <!-- 空状态 -->
-      <view v-if="!loading && sessions.length === 0" class="empty-state">
+      <view v-if="!loading && filteredSessions.length === 0" class="empty-state">
         <SvgIcon name="message-square" size="80rpx" color="tertiary" />
-        <text class="empty-text">暂无会话记录</text>
-        <text class="empty-hint">开始一段新对话吧</text>
+        <text class="empty-text">{{ searchKeyword ? '未找到匹配的会话' : '暂无会话记录' }}</text>
+        <text class="empty-hint">{{ searchKeyword ? '尝试其他关键词' : '开始一段新对话吧' }}</text>
       </view>
 
       <!-- 加载中 -->
@@ -78,7 +102,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue';
+import { computed, ref } from 'vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useChatStore } from '@/stores/chat';
 
@@ -95,8 +119,36 @@ const emit = defineEmits<{
 
 const chatStore = useChatStore();
 
+// ==================== 搜索功能 ====================
+
+/** 搜索关键词 */
+const searchKeyword = ref('');
+
+/** 根据关键词过滤会话列表 */
+const filteredSessions = computed(() => {
+  const keyword = searchKeyword.value.trim().toLowerCase();
+  if (!keyword) {
+    return chatStore.sessions;
+  }
+  // 过滤标题包含关键词的会话
+  return chatStore.sessions.filter((session: any) =>
+    session.title.toLowerCase().includes(keyword)
+  );
+});
+
+/** 搜索事件处理 */
+function handleSearch() {
+  console.log('[SessionDrawer] 搜索:', searchKeyword.value);
+}
+
+/** 清除搜索关键词 */
+function clearSearch() {
+  searchKeyword.value = '';
+}
+
+// ==================== 原有功能 ====================
+
 /** 从 store 获取会话列表 */
-const sessions = computed(() => chatStore.sessions);
 const currentChatId = computed(() => chatStore.currentChatId);
 const loading = computed(() => chatStore.loadingSessions);
 
@@ -267,6 +319,63 @@ function formatSessionTime(dateStr: string): string {
     opacity: 0.8;
     transform: scale(0.95);
   }
+}
+
+/* 搜索框 */
+.search-box {
+  padding: $spacing-md $spacing-base;
+  border-bottom: 2rpx solid $color-border-light;
+}
+
+.search-input-wrapper {
+  display: flex;
+  align-items: center;
+  gap: $spacing-sm;
+  padding: $spacing-sm $spacing-md;
+  background-color: $color-bg-primary;
+  border-radius: $radius-full;
+  border: 2rpx solid $color-border-light;
+  transition: border-color 0.15s ease;
+}
+
+.search-input-wrapper:focus-within {
+  border-color: $color-brand-primary;
+}
+
+.search-input {
+  flex: 1;
+  font-size: $font-size-base;
+  color: $color-text-primary;
+  background: transparent;
+  border: none;
+  outline: none;
+}
+
+.search-placeholder {
+  font-size: $font-size-base;
+  color: $color-text-tertiary;
+}
+
+.search-clear {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48rpx;
+  height: 48rpx;
+  border-radius: $radius-circle;
+  background-color: $color-text-tertiary;
+  transition: all 0.15s ease;
+
+  &:active {
+    opacity: 0.6;
+    transform: scale(0.9);
+  }
+}
+
+.search-clear-icon {
+  font-size: $font-size-lg;
+  color: $color-text-white;
+  line-height: 1;
 }
 
 /* 会话列表 */
