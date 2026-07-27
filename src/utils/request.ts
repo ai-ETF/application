@@ -79,3 +79,11 @@ export function get<T = any>(url: string, options?: Partial<UniApp.RequestOption
 export function post<T = any>(url: string, data?: any, options?: Partial<UniApp.RequestOptions>) {
   return request<T>({ url, method: 'POST', data, ...options } as UniApp.RequestOptions);
 }
+
+/**
+ * DELETE 请求简写
+ * @description 用于需要带请求体的删除接口（如 watchlist/remove）
+ */
+export function del<T = any>(url: string, data?: any, options?: Partial<UniApp.RequestOptions>) {
+  return request<T>({ url, method: 'DELETE', data, ...options } as UniApp.RequestOptions);
+}

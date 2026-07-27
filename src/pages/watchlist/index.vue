@@ -61,17 +61,19 @@
         <text class="header-text header-name">标的</text>
         <text class="header-text header-trend">走势</text>
         <text class="header-text header-price">最新价</text>
-        <text class="header-text header-ytd">年初至今</text>
+        <text class="header-text header-ytd">涨跌幅</text>
       </view>
 
       <!-- ETF 列表（可滚动） -->
       <scroll-view class="list-scroll" scroll-y>
-        <view class="etf-list">
+        <!-- 自选列表（无搜索关键词时） -->
+        <view v-if="!hasKeyword" class="etf-list">
           <view
-            v-for="item in filteredEtfList"
+            v-for="item in followList"
             :key="item.etfCode"
             class="etf-item"
             @tap="handleEtfClick(item)"
+            @longpress="handleLongPressRemove(item)"
           >
             <!-- 标的信息 -->
             <view class="etf-info">
@@ -82,7 +84,7 @@
               </view>
             </view>
 
-            <!-- 迷你走势图占位 -->
+            <!-- 迷你走势图占位（待 P2 接入分时图） -->
             <view class="mini-chart">
               <text class="chart-placeholder">--</text>
             </view>
@@ -92,22 +94,62 @@
               <text class="etf-price">{{ formatPrice(item.latestPrice) }}</text>
             </view>
 
-            <!-- 年初至今涨跌幅 -->
+            <!-- 涨跌幅 -->
             <view class="ytd-section">
-              <view class="ytd-badge" :class="item.ytdChange >= 0 ? 'profit' : 'loss'">
-                <text class="ytd-text">{{ formatYtd(item.ytdChange) }}</text>
+              <view class="ytd-badge" :class="item.changePercent >= 0 ? 'profit' : 'loss'">
+                <text class="ytd-text">{{ formatChange(item.changePercent) }}</text>
+              </view>
+            </view>
+          </view>
+        </view>
+
+        <!-- 搜索结果（有关键词时） -->
+        <view v-else class="etf-list">
+          <view
+            v-for="item in searchResults"
+            :key="item.code"
+            class="etf-item"
+          >
+            <view class="etf-info">
+              <text class="etf-name">{{ item.name }}</text>
+              <view class="etf-meta">
+                <view class="market-tag">{{ marketOf(item.code) }}</view>
+                <text class="etf-code">{{ item.code }}</text>
+              </view>
+            </view>
+
+            <view class="mini-chart">
+              <text class="chart-placeholder">--</text>
+            </view>
+
+            <view class="price-section">
+              <text class="etf-price">{{ formatPrice(item.price || 0) }}</text>
+            </view>
+
+            <view class="ytd-section">
+              <!-- 未关注 → 显示添加按钮 -->
+              <view
+                v-if="!isFollowed(item.code)"
+                class="add-btn"
+                @tap="handleAdd(item)"
+              >
+                <text class="add-btn-text">+ 添加</text>
+              </view>
+              <!-- 已关注 → 置灰 -->
+              <view v-else class="ytd-badge added-badge">
+                <text class="ytd-text">已添加</text>
               </view>
             </view>
           </view>
         </view>
 
         <!-- 空状态 -->
-        <view v-if="filteredEtfList.length === 0" class="empty-state">
+        <view v-if="showEmpty" class="empty-state">
           <view class="empty-icon-box">
-            <SvgIcon name="bookmark" size="64rpx" color="tertiary" />
+            <SvgIcon :name="hasKeyword ? 'search' : 'bookmark'" size="64rpx" color="tertiary" />
           </view>
-          <text class="empty-text">暂无关注的 ETF</text>
-          <text class="empty-hint">搜索并添加您感兴趣的 ETF</text>
+          <text class="empty-text">{{ hasKeyword ? '未找到相关 ETF' : '暂无关注的 ETF' }}</text>
+          <text class="empty-hint">{{ hasKeyword ? '换个关键词试试' : '搜索并添加您感兴趣的 ETF' }}</text>
         </view>
 
         <view class="scroll-bottom-placeholder"></view>
@@ -225,29 +267,28 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import TabBar from '@/components/common/TabBar.vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import PositionItem from '@/components/business/PositionItem.vue';
+import { useWatchlistStore } from '@/stores/watchlist';
 import type { WatchlistItem, HoldingItem } from '@/types/models.d';
+import type { SearchResultRaw } from '@/api/types';
+
+// ==================== Store ====================
+
+const watchlistStore = useWatchlistStore();
 
 // ==================== 状态定义 ====================
 
 /** 当前激活的 Tab：follow(关注) | position(持仓) */
 const activeTab = ref<'follow' | 'position'>('follow');
 
-/** 搜索关键词 */
+/** 搜索关键词（本地输入态，驱动 store 搜索） */
 const searchKeyword = ref<string>('');
 
-/** 关注列表（模拟数据） */
-const etfList = ref<WatchlistItem[]>([
-  { etfName: '沪深300ETF', etfCode: '510300', market: '沪', latestPrice: 5.128, changePercent: 0.45, ytdChange: 12.45 },
-  { etfName: '中证500ETF', etfCode: '510500', market: '沪', latestPrice: 6.842, changePercent: 0.92, ytdChange: 8.92 },
-  { etfName: '科创50ETF', etfCode: '588000', market: '沪', latestPrice: 1.235, changePercent: -0.32, ytdChange: -5.67 },
-  { etfName: '创业板ETF', etfCode: '159915', market: '深', latestPrice: 2.156, changePercent: 1.25, ytdChange: 15.32 },
-]);
-
-/** 持仓列表（模拟数据） */
+/** 持仓列表（模拟数据，待后续接入持仓接口） */
 const positionList = ref<HoldingItem[]>([
   { fundName: '易方达科创50A (510300)', fundCode: '510300', holdingAmount: 50000, holdingShares: 45678.9, dailyProfit: 125, dailyProfitPercent: 0.25, totalProfit: 1250, totalProfitPercent: 2.5, updateDate: '2 月 27 日' },
   { fundName: '南方有色金属A (160526)', fundCode: '160526', holdingAmount: 30000, holdingShares: 28456.78, dailyProfit: -45, dailyProfitPercent: -0.15, totalProfit: 900, totalProfitPercent: 3.0, updateDate: '2 月 27 日' },
@@ -266,33 +307,127 @@ const cumulativeEarnings = ref({ amount: 5678, percent: 2.34 });
 
 // ==================== 计算属性 ====================
 
-const filteredEtfList = computed(() => {
-  if (!searchKeyword.value.trim()) return etfList.value;
-  const keyword = searchKeyword.value.toLowerCase();
-  return etfList.value.filter(
-    item => item.etfName.toLowerCase().includes(keyword) || item.etfCode.includes(keyword)
-  );
+/** 自选列表（来自 store） */
+const followList = computed(() => watchlistStore.followList);
+
+/** 搜索结果（来自 store） */
+const searchResults = computed(() => watchlistStore.searchResults);
+
+/** 是否处于搜索态（有关键词） */
+const hasKeyword = computed(() => searchKeyword.value.trim().length > 0);
+
+/** 空状态展示条件 */
+const showEmpty = computed(() => {
+  if (hasKeyword.value) {
+    // 搜索态：无结果且不在搜索中
+    return searchResults.value.length === 0 && !watchlistStore.searching;
+  }
+  return followList.value.length === 0;
+});
+
+// ==================== 搜索（防抖 400ms） ====================
+
+let searchTimer: ReturnType<typeof setTimeout> | null = null;
+
+watch(searchKeyword, (kw) => {
+  if (searchTimer) clearTimeout(searchTimer);
+
+  // 关键词清空 → 退出搜索态，回到自选列表
+  if (!kw.trim()) {
+    watchlistStore.clearSearch();
+    return;
+  }
+
+  // 防抖，避免每输入一个字符就请求
+  searchTimer = setTimeout(() => {
+    watchlistStore.searchEtf(kw.trim());
+  }, 400);
+});
+
+// ==================== 生命周期 ====================
+
+/**
+ * 页面每次显示时刷新自选列表
+ * @description 用 onShow 而非 onLoad，确保从详情页返回能拿到最新自选
+ */
+onShow(() => {
+  if (activeTab.value === 'follow') {
+    watchlistStore.fetchFollowList();
+  }
 });
 
 // ==================== 方法 ====================
 
-function formatPrice(price: number): string {
-  return price.toFixed(3);
+/**
+ * 切换 Tab，切到关注时刷新列表
+ */
+function switchTab(tab: 'follow' | 'position') {
+  activeTab.value = tab;
+  if (tab === 'follow') {
+    watchlistStore.fetchFollowList();
+  }
+  console.log(`[WatchlistPage] 切换 Tab: ${tab}`);
 }
 
-function formatYtd(value: number): string {
+/** 格式化价格，缺失时显示 -- */
+function formatPrice(price: number): string {
+  return price ? price.toFixed(3) : '--';
+}
+
+/** 格式化涨跌幅，带正负号 */
+function formatChange(value: number): string {
   const sign = value >= 0 ? '+' : '';
   return `${sign}${value.toFixed(2)}%`;
 }
 
-function switchTab(tab: 'follow' | 'position') {
-  activeTab.value = tab;
-  console.log(`[WatchlistPage] 切换 Tab: ${tab}`);
+/** 由代码推断市场标签（与 store 内 deriveMarket 一致） */
+function marketOf(code: string): string {
+  const c = code.trim();
+  if (/^[56]/.test(c)) return '沪';
+  if (/^[01]/.test(c)) return '深';
+  return '';
 }
 
+/** 是否已关注（搜索结果用） */
+function isFollowed(code: string): boolean {
+  return watchlistStore.isFollowed(code);
+}
+
+/**
+ * 点击搜索结果中的「添加」
+ */
+async function handleAdd(item: SearchResultRaw) {
+  const ok = await watchlistStore.addToFollow(item.code);
+  if (ok) {
+    uni.showToast({ title: '已添加', icon: 'success' });
+  }
+}
+
+/**
+ * 点击自选项（详情页待 P2 接入）
+ */
 function handleEtfClick(item: WatchlistItem) {
   console.log(`[WatchlistPage] 点击 ETF: ${item.etfName} (${item.etfCode})`);
   uni.showToast({ title: `${item.etfName} 详情页开发中`, icon: 'none' });
+}
+
+/**
+ * 长按自选项 → 确认移除
+ */
+function handleLongPressRemove(item: WatchlistItem) {
+  uni.showModal({
+    title: '移除自选',
+    content: `确定移除「${item.etfName}」吗？`,
+    confirmColor: '#DC2626',
+    success: async (res) => {
+      if (res.confirm) {
+        const ok = await watchlistStore.removeFromFollow(item.etfCode);
+        if (ok) {
+          uni.showToast({ title: '已移除', icon: 'none' });
+        }
+      }
+    },
+  });
 }
 
 function handleAssetDiag() {
@@ -534,6 +669,35 @@ function handlePositionClick(fundName: string) {
 
 .ytd-badge.loss .ytd-text {
   color: $color-down;
+}
+
+/* ==================== 添加按钮（搜索结果） ==================== */
+.add-btn {
+  @include flex-center;
+  padding: $spacing-xs $spacing-sm;
+  border-radius: $radius-full;
+  background-color: $color-brand-bg;
+  transition: all $transition-fast $ease-in-out;
+
+  &:active {
+    opacity: 0.7;
+    transform: scale(0.96);
+  }
+}
+
+.add-btn-text {
+  font-size: $font-size-xs;
+  font-weight: $font-weight-semibold;
+  color: $color-brand-primary;
+}
+
+/* 已添加置灰态 */
+.ytd-badge.added-badge {
+  background-color: $color-border-light;
+}
+
+.ytd-badge.added-badge .ytd-text {
+  color: $color-text-tertiary;
 }
 
 /* ==================== 资产卡片样式 ==================== */
