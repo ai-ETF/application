@@ -314,11 +314,6 @@ function formatSessionTime(dateStr: string): string {
   background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
   border-radius: $radius-circle;
   box-shadow: 0 4rpx 12rpx rgba($color-brand-primary, 0.3);
-
-  &:active {
-    opacity: 0.8;
-    transform: scale(0.95);
-  }
 }
 
 /* 搜索框 */
@@ -330,16 +325,13 @@ function formatSessionTime(dateStr: string): string {
 .search-input-wrapper {
   display: flex;
   align-items: center;
-  gap: $spacing-sm;
   padding: $spacing-sm $spacing-md;
+  .svg-icon + .search-input,
+  .search-input + .search-clear { margin-left: $spacing-sm; }
   background-color: $color-bg-primary;
   border-radius: $radius-full;
   border: 2rpx solid $color-border-light;
   transition: border-color 0.15s ease;
-}
-
-.search-input-wrapper:focus-within {
-  border-color: $color-brand-primary;
 }
 
 .search-input {
@@ -365,11 +357,6 @@ function formatSessionTime(dateStr: string): string {
   border-radius: $radius-circle;
   background-color: $color-text-tertiary;
   transition: all 0.15s ease;
-
-  &:active {
-    opacity: 0.6;
-    transform: scale(0.9);
-  }
 }
 
 .search-clear-icon {
@@ -387,16 +374,13 @@ function formatSessionTime(dateStr: string): string {
 .session-item {
   display: flex;
   align-items: center;
-  gap: $spacing-md;
   padding: $spacing-md $spacing-base;
   margin: 0 $spacing-sm;
   border-radius: $radius-md;
   transition: all 0.15s ease;
   cursor: pointer;
-
-  &:active {
-    background-color: $color-bg-primary;
-  }
+  .session-icon + .session-info,
+  .session-info + .session-actions { margin-left: $spacing-md; }
 }
 
 .session-item--active {
@@ -419,8 +403,8 @@ function formatSessionTime(dateStr: string): string {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: $spacing-xs;
   min-width: 0;
+  .session-title + .session-time { margin-top: $spacing-xs; }
 }
 
 .session-title {
@@ -445,17 +429,6 @@ function formatSessionTime(dateStr: string): string {
   width: 56rpx;
   height: 56rpx;
   border-radius: $radius-circle;
-  opacity: 0;
-  transition: opacity 0.15s ease;
-
-  &:active {
-    background-color: $color-up-bg;
-  }
-}
-
-.session-item:hover .session-delete,
-.session-item:active .session-delete {
-  opacity: 1;
 }
 
 /* 操作按钮组 */
@@ -463,15 +436,9 @@ function formatSessionTime(dateStr: string): string {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: $spacing-xs;
-  opacity: 0;
-  transition: opacity 0.15s ease;
+  .session-action-btn + .session-action-btn { margin-left: $spacing-xs; }
 }
 
-.session-item:hover .session-actions,
-.session-item:active .session-actions {
-  opacity: 1;
-}
 
 .session-action-btn {
   flex-shrink: 0;
@@ -482,14 +449,6 @@ function formatSessionTime(dateStr: string): string {
   height: 56rpx;
   border-radius: $radius-circle;
   transition: all 0.15s ease;
-
-  &:active {
-    background-color: $color-bg-primary;
-  }
-}
-
-.session-action-btn--danger:active {
-  background-color: $color-up-bg;
 }
 
 /* 空状态 */
@@ -499,7 +458,8 @@ function formatSessionTime(dateStr: string): string {
   align-items: center;
   justify-content: center;
   padding: 120rpx $spacing-xl;
-  gap: $spacing-md;
+  .svg-icon + .empty-text,
+  .empty-text + .empty-hint { margin-top: $spacing-md; }
 }
 
 .empty-text {

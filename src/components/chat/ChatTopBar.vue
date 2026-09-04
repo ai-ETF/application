@@ -7,7 +7,7 @@
  */
 
 <template>
-  <view class="top-bar">
+  <view class="top-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
     <!-- 左侧：菜单按钮 + 品牌区域 -->
     <view class="left-area">
       <!-- 菜单按钮 — 毛玻璃卡牌风格 -->
@@ -60,6 +60,10 @@
 
 <script setup lang="ts">
 import SvgIcon from '@/components/common/SvgIcon.vue';
+import { useSystemInfo } from '@/composables/useSystemInfo';
+
+/** 状态栏高度，用于自定义导航栏的顶部 padding */
+const { statusBarHeight } = useSystemInfo();
 
 defineProps<{
   /** 当前会话标题（可选） */
@@ -84,32 +88,25 @@ function handleCastClick() { emit('cast'); }
  * 顶部栏容器 — 暖琥珀渐变底
  * ============================================ */
 .top-bar {
+  flex-shrink: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  padding: $spacing-sm $spacing-base $spacing-sm;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  padding-bottom: $spacing-sm;
+  padding-left: $spacing-base;
+  padding-right: $spacing-base;
   position: relative;
   z-index: 10;
+  box-sizing: border-box;
 
   /* 纯色背景，与页面一致 */
   background-color: $color-bg-primary;
 
-  /* 底部精细分隔线 — 渐隐效果 */
-  &::after {
-    content: '';
-    position: absolute;
-    left: $spacing-base;
-    right: $spacing-base;
-    bottom: 0;
-    height: 2rpx;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba($color-brand-primary, 0.15) 50%,
-      transparent 100%
-    );
-  }
+  /* 注意：底部精细分隔线（渐隐效果）已移除，小程序不支持 ::after 伪元素 */
 }
 
 /* ============================================
@@ -119,7 +116,9 @@ function handleCastClick() { emit('cast'); }
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: $spacing-md;
+  flex-shrink: 1;
+  min-width: 0;
+  .menu-btn + .brand-area { margin-left: $spacing-md; }
 }
 
 /* ============================================
@@ -139,13 +138,7 @@ function handleCastClick() { emit('cast'); }
     inset 0 1rpx 0 rgba(255, 255, 255, 0.6);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* 点击反馈 */
-  &:active {
-    transform: scale(0.94);
-    box-shadow:
-      0 1rpx 4rpx rgba($color-brand-primary, 0.08),
-      inset 0 1rpx 0 rgba(255, 255, 255, 0.4);
-  }
+  /* 注意：&:active 点击反馈已移除，小程序不支持该伪类 */
 }
 
 .menu-btn__inner {
@@ -153,7 +146,6 @@ function handleCastClick() { emit('cast'); }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 7rpx;
   width: 40rpx;
   height: 40rpx;
 }
@@ -177,6 +169,8 @@ function handleCastClick() { emit('cast'); }
   align-self: flex-end;
 }
 
+.menu-icon-bar + .menu-icon-bar { margin-top: 7rpx; }
+
 /* ============================================
  * 品牌区域 — Logo + 小E文字
  * ============================================ */
@@ -184,7 +178,7 @@ function handleCastClick() { emit('cast'); }
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: $spacing-sm;
+  .brand-icon-wrap + .brand-text-area { margin-left: $spacing-sm; }
 }
 
 /* AI 图标外圈 — 琥珀渐变圆 */
@@ -197,31 +191,20 @@ function handleCastClick() { emit('cast'); }
   background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
   border-radius: 18rpx;
   box-shadow: 0 4rpx 12rpx rgba($color-brand-primary, 0.25);
-  position: relative;
-
-  /* 发光光晕 */
-  &::after {
-    content: '';
-    position: absolute;
-    inset: -4rpx;
-    border-radius: 22rpx;
-    background: linear-gradient(135deg, $color-brand-light, transparent);
-    opacity: 0.25;
-    z-index: -1;
-  }
+  /* 注意：发光光晕（::after 伪元素）已移除，小程序不支持 */
 }
 
 .brand-text-area {
   display: flex;
   flex-direction: column;
-  gap: 4rpx;
+  .brand-title-row + .status-row { margin-top: 4rpx; }
 }
 
 .brand-title-row {
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: $spacing-xs;
+  .brand-title + .brand-badge { margin-left: $spacing-xs; }
 }
 
 .brand-title {
@@ -247,7 +230,7 @@ function handleCastClick() { emit('cast'); }
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: $spacing-xs;
+  .status-dot + .status-text { margin-left: $spacing-xs; }
 }
 
 .status-dot {
@@ -256,13 +239,8 @@ function handleCastClick() { emit('cast'); }
   background: linear-gradient(135deg, #22C55E, #16A34A);
   border-radius: 50%;
   box-shadow: 0 0 8rpx rgba(#22C55E, 0.5);
-  animation: pulse-dot 2s ease-in-out infinite;
-}
-
-/* 呼吸光效 */
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+  /* 动画已移除，小程序对 keyframes 支持有限，使用静态透明度 */
+  opacity: 1;
 }
 
 .status-text {
@@ -275,10 +253,11 @@ function handleCastClick() { emit('cast'); }
  * 右侧操作按钮组
  * ============================================ */
 .right-actions {
+  flex-shrink: 0;
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: $spacing-xs;
+  .action-btn + .action-btn { margin-left: $spacing-xs; }
 }
 
 .action-btn {
@@ -293,11 +272,6 @@ function handleCastClick() { emit('cast'); }
   box-shadow: 0 2rpx 6rpx rgba($color-brand-primary, 0.04);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
-  &:active {
-    transform: scale(0.92);
-    background: $color-brand-bg;
-    border-color: rgba($color-brand-primary, 0.2);
-    box-shadow: 0 2rpx 8rpx rgba($color-brand-primary, 0.12);
-  }
+  /* 注意：&:active 点击反馈已移除，小程序不支持该伪类 */
 }
 </style>

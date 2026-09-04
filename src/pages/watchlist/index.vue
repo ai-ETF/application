@@ -19,9 +19,9 @@
  */
 
 <template>
-  <view class="page-container">
+  <view class="page-container" :style="{ minHeight: windowHeight + 'px' }">
     <!-- ==================== 顶部 Tab 切换 ==================== -->
-    <view class="top-tab">
+    <view class="top-tab" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view
         class="tab-item"
         :class="{ 'tab-item--active': activeTab === 'follow' }"
@@ -44,7 +44,7 @@
     <view v-if="activeTab === 'follow'" class="content-area">
       <!-- 搜索框 -->
       <view class="search-section">
-        <view class="search-bar">
+        <view class="search-bar" :class="{ 'search-bar--focused': searchFocused }">
           <SvgIcon name="search" size="36rpx" color="tertiary" />
           <input
             v-model="searchKeyword"
@@ -52,6 +52,8 @@
             type="text"
             placeholder="搜索 ETF 名称或代码"
             placeholder-class="search-placeholder"
+            @focus="searchFocused = true"
+            @blur="searchFocused = false"
           />
         </view>
       </view>
@@ -59,7 +61,6 @@
       <!-- 列表标题行 -->
       <view class="list-header">
         <text class="header-text header-name">标的</text>
-        <text class="header-text header-trend">走势</text>
         <text class="header-text header-price">最新价</text>
         <text class="header-text header-ytd">涨跌幅</text>
       </view>
@@ -73,7 +74,7 @@
             :key="item.etfCode"
             class="etf-item"
             @tap="handleEtfClick(item)"
-            @longpress="handleLongPressRemove(item)"
+
           >
             <!-- 标的信息 -->
             <view class="etf-info">
@@ -84,20 +85,19 @@
               </view>
             </view>
 
-            <!-- 迷你走势图占位（待 P2 接入分时图） -->
-            <view class="mini-chart">
-              <text class="chart-placeholder">--</text>
-            </view>
-
             <!-- 最新价格 -->
             <view class="price-section">
               <text class="etf-price">{{ formatPrice(item.latestPrice) }}</text>
             </view>
 
-            <!-- 涨跌幅 -->
+            <!-- 涨跌幅 + 删除按钮 -->
             <view class="ytd-section">
               <view class="ytd-badge" :class="item.changePercent >= 0 ? 'profit' : 'loss'">
                 <text class="ytd-text">{{ formatChange(item.changePercent) }}</text>
+              </view>
+              <!-- 删除按钮 -->
+              <view class="remove-btn" @tap.stop="handleRemove(item)">
+                <SvgIcon name="trash-2" size="28rpx" color="tertiary" />
               </view>
             </view>
           </view>
@@ -116,10 +116,6 @@
                 <view class="market-tag">{{ marketOf(item.code) }}</view>
                 <text class="etf-code">{{ item.code }}</text>
               </view>
-            </view>
-
-            <view class="mini-chart">
-              <text class="chart-placeholder">--</text>
             </view>
 
             <view class="price-section">
@@ -152,6 +148,13 @@
           <text class="empty-hint">{{ hasKeyword ? '换个关键词试试' : '搜索并添加您感兴趣的 ETF' }}</text>
         </view>
 
+        <!-- 清空自选按钮（非搜索态且有数据时显示） -->
+        <view v-if="!hasKeyword && followList.length > 0" class="clear-section">
+          <view class="clear-btn" @tap="handleClearAll">
+            <SvgIcon name="trash-2" size="32rpx" color="tertiary" />
+            <text class="clear-btn-text">清空自选</text>
+          </view>
+        </view>
         <view class="scroll-bottom-placeholder"></view>
       </scroll-view>
     </view>
@@ -273,6 +276,9 @@ import TabBar from '@/components/common/TabBar.vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import PositionItem from '@/components/business/PositionItem.vue';
 import { useWatchlistStore } from '@/stores/watchlist';
+import { useSystemInfo } from '@/composables/useSystemInfo';
+
+const { statusBarHeight, windowHeight } = useSystemInfo();
 import type { WatchlistItem, HoldingItem } from '@/types/models.d';
 import type { SearchResultRaw } from '@/api/types';
 
@@ -287,6 +293,9 @@ const activeTab = ref<'follow' | 'position'>('follow');
 
 /** 搜索关键词（本地输入态，驱动 store 搜索） */
 const searchKeyword = ref<string>('');
+
+/** 搜索框是否聚焦（小程序不支持 :focus-within，使用 JS 状态替代） */
+const searchFocused = ref<boolean>(false);
 
 /** 持仓列表（模拟数据，待后续接入持仓接口） */
 const positionList = ref<HoldingItem[]>([
@@ -412,9 +421,11 @@ function handleEtfClick(item: WatchlistItem) {
 }
 
 /**
- * 长按自选项 → 确认移除
  */
-function handleLongPressRemove(item: WatchlistItem) {
+/**
+ * 点击删除按钮 → 确认移除单条自选
+ */
+function handleRemove(item: WatchlistItem) {
   uni.showModal({
     title: '移除自选',
     content: `确定移除「${item.etfName}」吗？`,
@@ -425,6 +436,23 @@ function handleLongPressRemove(item: WatchlistItem) {
         if (ok) {
           uni.showToast({ title: '已移除', icon: 'none' });
         }
+      }
+    },
+  });
+}
+
+/**
+ * 清空全部自选 → 二次确认
+ */
+function handleClearAll() {
+  uni.showModal({
+    title: '清空自选',
+    content: '确定清空所有自选股吗？此操作不可恢复。',
+    confirmColor: '#DC2626',
+    success: async (res) => {
+      if (res.confirm) {
+        await watchlistStore.clearFollow();
+        uni.showToast({ title: '已清空', icon: 'none' });
       }
     },
   });
@@ -450,7 +478,6 @@ function handlePositionClick(fundName: string) {
 .page-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
   background-color: $color-bg-primary;
 }
 
@@ -459,8 +486,10 @@ function handlePositionClick(fundName: string) {
   display: flex;
   height: 96rpx;
   background-color: $color-bg-primary;
-  padding: 0 $spacing-xl;
-  gap: $spacing-xl;
+  padding: 0 $spacing-base;
+  .tab-item + .tab-item {
+    margin-left: $spacing-xl;
+  }
 }
 
 .tab-item {
@@ -497,25 +526,32 @@ function handlePositionClick(fundName: string) {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 0;
+  padding: 0 $spacing-base;
 }
 
 /* ==================== 搜索框样式 ==================== */
 .search-section {
-  padding: $spacing-md $spacing-base $spacing-sm;
+  padding-top: $spacing-md;
+  padding-bottom: $spacing-sm;
 }
 
 .search-bar {
   @include pill-button;
-  gap: $spacing-sm;
   padding: 0 $spacing-base;
   border: 2rpx solid $color-border;
   box-shadow: $shadow-sm;
   transition: all $transition-fast $ease-in-out;
-
-  &:focus-within {
-    border-color: $color-brand-primary;
-    box-shadow: 0 0 0 4rpx rgba($color-brand-primary, 0.1);
+  /* 小程序适配：gap 替换为 margin */
+  .svg-icon + .search-input {
+    margin-left: $spacing-sm;
   }
+}
+
+/* 小程序适配：:focus-within 替换为 JS 控制类 */
+.search-bar--focused {
+  border-color: $color-brand-primary;
+  box-shadow: 0 0 0 4rpx rgba($color-brand-primary, 0.1);
 }
 
 .search-input {
@@ -531,8 +567,8 @@ function handlePositionClick(fundName: string) {
 /* ==================== 列表标题行 ==================== */
 .list-header {
   @include flex(row, flex-start, center);
-  padding: $spacing-sm $spacing-base;
-  gap: 0;
+  padding-top: $spacing-sm;
+  padding-bottom: $spacing-sm;
 }
 
 .header-text {
@@ -542,34 +578,30 @@ function handlePositionClick(fundName: string) {
 }
 
 .header-name {
-  width: 200rpx;
-}
-
-.header-trend {
-  width: 120rpx;
-  text-align: center;
+  flex: 3;
 }
 
 .header-price {
-  width: 120rpx;
+  flex: 1;
   text-align: right;
 }
 
 .header-ytd {
-  width: 140rpx;
+  flex: 1;
   text-align: right;
 }
 
 /* ==================== ETF 列表样式 ==================== */
 .list-scroll {
   flex: 1;
-  padding: 0 $spacing-base;
 }
 
 .etf-list {
   display: flex;
   flex-direction: column;
-  gap: $spacing-sm;
+  .etf-item + .etf-item {
+    margin-top: $spacing-sm;
+  }
 }
 
 .etf-item {
@@ -578,27 +610,32 @@ function handlePositionClick(fundName: string) {
   @include card($radius: $radius-md);
   box-shadow: $shadow-sm;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.9;
-    transform: scale(0.99);
+  /* 列间距：防止价格和涨跌幅紧贴 */
+  .etf-info + .price-section,
+  .price-section + .ytd-section {
+    margin-left: $spacing-md;
   }
 }
 
+/* 左侧名称：权重 3 */
 .etf-info {
-  width: 200rpx;
+  flex: 3;
+  min-width: 0;
 }
 
 .etf-name {
   font-size: $font-size-base;
   font-weight: $font-weight-semibold;
   color: $color-text-primary;
+  @include text-ellipsis(1);
 }
 
 .etf-meta {
   @include flex(row, flex-start, center);
-  gap: $spacing-xs;
   margin-top: $spacing-xs;
+  .market-tag + .etf-code {
+    margin-left: $spacing-xs;
+  }
 }
 
 .market-tag {
@@ -618,19 +655,9 @@ function handlePositionClick(fundName: string) {
   color: $color-text-tertiary;
 }
 
-.mini-chart {
-  width: 120rpx;
-  height: 60rpx;
-  @include flex-center;
-}
-
-.chart-placeholder {
-  font-size: $font-size-sm;
-  color: $color-border;
-}
-
+/* 最新价格：权重 1，右对齐 */
 .price-section {
-  width: 120rpx;
+  flex: 1;
   text-align: right;
 }
 
@@ -640,8 +667,9 @@ function handlePositionClick(fundName: string) {
   color: $color-text-primary;
 }
 
+/* 涨跌幅：权重 1，右对齐 */
 .ytd-section {
-  width: 140rpx;
+  flex: 1;
   @include flex(row, flex-end, center);
 }
 
@@ -671,6 +699,39 @@ function handlePositionClick(fundName: string) {
   color: $color-down;
 }
 
+/* ==================== 删除按钮（自选列表） ==================== */
+.remove-btn {
+  @include flex-center;
+  margin-left: $spacing-xs;
+  padding: $spacing-xs;
+  border-radius: $radius-full;
+  transition: all $transition-fast $ease-in-out;
+}
+
+/* ==================== 清空自选按钮 ==================== */
+.clear-section {
+  padding: $spacing-lg $spacing-base;
+  @include flex-center;
+}
+
+.clear-btn {
+  @include flex(row, center, center);
+  padding: $spacing-sm $spacing-lg;
+  border: 2rpx solid $color-border;
+  border-radius: $radius-full;
+  transition: all $transition-fast $ease-in-out;
+  /* 小程序适配：gap 替换为 margin */
+  .svg-icon + .clear-btn-text {
+    margin-left: $spacing-xs;
+  }
+
+}
+
+.clear-btn-text {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
 /* ==================== 添加按钮（搜索结果） ==================== */
 .add-btn {
   @include flex-center;
@@ -678,11 +739,6 @@ function handlePositionClick(fundName: string) {
   border-radius: $radius-full;
   background-color: $color-brand-bg;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.7;
-    transform: scale(0.96);
-  }
 }
 
 .add-btn-text {
@@ -714,7 +770,10 @@ function handlePositionClick(fundName: string) {
 
 .card-title-row {
   @include flex(row, flex-start, center);
-  gap: $spacing-sm;
+  /* 小程序适配：gap 替换为 margin */
+  .svg-icon + .card-title {
+    margin-left: $spacing-sm;
+  }
 }
 
 .card-title {
@@ -725,20 +784,21 @@ function handlePositionClick(fundName: string) {
 
 .header-actions {
   @include flex(row, flex-end, center);
-  gap: $spacing-sm;
+  /* 小程序适配：gap 替换为 margin */
+  .action-btn + .action-btn {
+    margin-left: $spacing-sm;
+  }
 }
 
 .action-btn {
   @include flex(row, center, center);
-  gap: $spacing-xs;
   padding: $spacing-sm $spacing-md;
   border: 2rpx solid $color-border;
   border-radius: $radius-base;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.8;
-    background-color: $color-border-light;
+  /* 小程序适配：gap 替换为 margin */
+  .svg-icon + .action-text {
+    margin-left: $spacing-xs;
   }
 }
 
@@ -769,8 +829,11 @@ function handlePositionClick(fundName: string) {
 /* 更新时间行 */
 .update-section {
   @include flex(row, center, center);
-  gap: $spacing-xs;
   margin-top: $spacing-sm;
+  /* 小程序适配：gap 替换为 margin */
+  .svg-icon + .update-text {
+    margin-left: $spacing-xs;
+  }
 }
 
 .update-text {
@@ -788,8 +851,12 @@ function handlePositionClick(fundName: string) {
 
 .earnings-item {
   @include flex(column, center, center);
-  gap: $spacing-xs;
   flex: 1;
+  /* 小程序适配：gap 替换为 margin */
+  .earnings-value + .earnings-percent,
+  .earnings-percent + .earnings-label {
+    margin-top: $spacing-xs;
+  }
 }
 
 .earnings-divider {
@@ -825,8 +892,11 @@ function handlePositionClick(fundName: string) {
 /* ==================== 持仓列表样式 ==================== */
 .position-list-title {
   @include flex(row, flex-start, center);
-  gap: $spacing-sm;
   padding: $spacing-md 0 $spacing-sm;
+  /* 小程序适配：gap 替换为 margin */
+  .svg-icon + .title-text {
+    margin-left: $spacing-sm;
+  }
 }
 
 .title-text {
@@ -838,13 +908,16 @@ function handlePositionClick(fundName: string) {
 .position-list {
   display: flex;
   flex-direction: column;
-  gap: $spacing-md;
+  /* 小程序适配：gap 替换为 margin */
+  .position-item + .position-item {
+    margin-top: $spacing-md;
+  }
 }
 
 /* ==================== 空状态样式 ==================== */
 .empty-state {
   @include flex(column, center, center);
-  padding: 160rpx 0;
+  padding: $spacing-2xl 0;
 }
 
 .empty-icon-box {
@@ -870,6 +943,6 @@ function handlePositionClick(fundName: string) {
 
 /* ==================== 底部占位 ==================== */
 .scroll-bottom-placeholder {
-  height: 200rpx;
+  height: $spacing-xl;
 }
 </style>

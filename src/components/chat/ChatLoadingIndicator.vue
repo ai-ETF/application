@@ -36,8 +36,11 @@ withDefaults(defineProps<Props>(), {
 <style lang="scss" scoped>
 .loading-wrapper {
   @include flex(row, flex-start, center);
-  gap: $spacing-sm;
   margin-bottom: $spacing-md;
+  /* 小程序适配：gap 替换为 margin */
+  .avatar + .loading-card {
+    margin-left: $spacing-sm;
+  }
 }
 
 .avatar {
@@ -52,18 +55,24 @@ withDefaults(defineProps<Props>(), {
 
 .loading-card {
   @include flex(row, flex-start, center);
-  gap: $spacing-sm;
   padding: $spacing-md $spacing-base;
   background-color: $color-bg-card;
   border-radius: $radius-md;
   border: 2rpx solid $color-border;
   border-bottom-left-radius: $radius-sm;
   box-shadow: $shadow-sm;
+  /* 小程序适配：gap 替换为 margin */
+  .loading-dots + .loading-text {
+    margin-left: $spacing-sm;
+  }
 }
 
 .loading-dots {
   @include flex(row, center, center);
-  gap: $spacing-xs;
+  /* 小程序适配：gap 替换为 margin */
+  .dot + .dot {
+    margin-left: $spacing-xs;
+  }
 }
 
 .dot {
@@ -71,21 +80,10 @@ withDefaults(defineProps<Props>(), {
   height: $loading-dot-size;
   background: linear-gradient(135deg, $color-brand-primary, $color-brand-light);
   border-radius: $radius-circle;
-  animation: bounce 1.4s infinite ease-in-out both;
-
-  &:nth-child(1) { animation-delay: -0.32s; }
-  &:nth-child(2) { animation-delay: -0.16s; }
-}
-
-@keyframes bounce {
-  0%, 80%, 100% {
-    transform: scale(0.6);
-    opacity: 0.5;
-  }
-  40% {
-    transform: scale(1);
-    opacity: 1;
-  }
+  /* 小程序适配：简化为静态透明度渐变，不使用 @keyframes（兼容性问题） */
+  &:nth-child(1) { opacity: 0.5; }
+  &:nth-child(2) { opacity: 0.75; }
+  &:nth-child(3) { opacity: 1; }
 }
 
 .loading-text {

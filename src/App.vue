@@ -34,6 +34,43 @@ const WHITE_LIST = [
 let initialized = false;
 
 /**
+ * Base64URL → UTF-8 字符串
+ * @description 手写解码，不依赖 atob / btoa / Buffer 等浏览器或 Node API，兼容小程序、App、H5 三端
+ */
+function base64UrlDecode(input: string): string {
+  // Base64URL → 标准 Base64，并补齐 padding（JWT payload 通常省略 =）
+  let base64 = input.replace(/-/g, '+').replace(/_/g, '/');
+  while (base64.length % 4 !== 0) {
+    base64 += '=';
+  }
+
+  const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+  const bytes: number[] = [];
+
+  for (let i = 0; i < base64.length; i += 4) {
+    const c0 = CHARS.indexOf(base64[i]);
+    const c1 = CHARS.indexOf(base64[i + 1]);
+    const c2 = base64[i + 2] === '=' ? 0 : CHARS.indexOf(base64[i + 2]);
+    const c3 = base64[i + 3] === '=' ? 0 : CHARS.indexOf(base64[i + 3]);
+
+    // 4 个 6-bit 字符 → 3 个 8-bit 字节
+    const n = (c0 << 18) | (c1 << 12) | (c2 << 6) | c3;
+
+    bytes.push((n >> 16) & 0xff);
+    if (base64[i + 2] !== '=') bytes.push((n >> 8) & 0xff);
+    if (base64[i + 3] !== '=') bytes.push(n & 0xff);
+  }
+
+  // 字节数组 → UTF-8 字符串（decodeURIComponent 是 ECMAScript 全局函数，各端可用）
+  return decodeURIComponent(
+    bytes.map((b) => {
+      const hex = b.toString(16);
+      return '%' + (hex.length < 2 ? '0' + hex : hex);
+    }).join('')
+  );
+}
+
+/**
  * 检查 token 是否有效
  * @description 解析 JWT 的过期时间，若已过期则视为无效
  * @returns true = 有效, false = 无效或不存在
@@ -43,13 +80,12 @@ function isTokenValid(): boolean {
   if (!token) return false;
 
   try {
-    // JWT 格式: header.payload.signature，payload 是 base64 编码的 JSON
-    const payloadBase64 = token.split('.')[1];
-    if (!payloadBase64) return false;
+    // JWT 格式: header.payload.signature，必须为三段
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
 
-    // 修复 base64 长度（uni-app 环境下可能需要补全）
-    const padded = payloadBase64.replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(padded));
+    // 解码 payload（Base64URL）
+    const payload = JSON.parse(base64UrlDecode(parts[1]));
 
     // 检查过期时间
     if (payload.exp) {

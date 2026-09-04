@@ -201,8 +201,8 @@ function onScroll(e: any) {
  */
 function scrollToBottom() {
   nextTick(() => {
-    // 滚动到底部：scrollTop 设为较大的值触发，scroll-view 会限制在最大范围
-    scrollTop.value = scrollTop.value + 10000;
+    // 使用固定大值，scroll-view 会自动 clamp 到最大滚动位置，避免累积递增
+    scrollTop.value = 999999;
   });
 }
 
@@ -235,9 +235,13 @@ defineExpose({
 
 <style lang="scss" scoped>
 .chat-area {
-  flex: 1;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  height: 100%;
   padding: 0 $spacing-base;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .chat-bottom-placeholder {

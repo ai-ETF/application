@@ -22,6 +22,32 @@ function translateError(message: string): string {
   return errorMap[message] || message;
 }
 
+/**
+ * 将微信客户端底层网络错误转换成可定位的提示。
+ * 保留原始 errMsg 到日志中，但不记录邮箱、密码或 Token。
+ */
+function translateNetworkError(error: any): string {
+  const errMsg = String(error?.errMsg || error?.message || '');
+  const normalized = errMsg.toLowerCase();
+  console.error('[useAuth] 网络请求失败:', errMsg || error);
+
+  if (normalized.includes('domain list') || normalized.includes('url not in')) {
+    return '请求域名未加入微信小程序合法域名';
+  }
+  if (
+    normalized.includes('certificate')
+    || normalized.includes('cert_')
+    || normalized.includes('ssl')
+    || normalized.includes('tls')
+  ) {
+    return 'HTTPS 安全连接失败，请联系管理员检查服务器证书';
+  }
+  if (normalized.includes('timeout') || normalized.includes('timed out')) {
+    return '连接服务器超时，请稍后重试';
+  }
+  return '网络连接失败，请检查网络或联系管理员';
+}
+
 export function useAuth() {
   const authStore = useAuthStore();
   const loading = ref(false);
@@ -66,12 +92,7 @@ export function useAuth() {
         return { error: errorMessage.value };
       }
     } catch (e: any) {
-      const errMsg = e?.errMsg || e?.message || '网络连接失败，请检查网络';
-      if (e?.errMsg?.includes('fail') || e?.message?.includes('NetworkError')) {
-        errorMessage.value = '网络连接失败，请检查后端服务是否启动';
-      } else {
-        errorMessage.value = errMsg;
-      }
+      errorMessage.value = translateNetworkError(e);
       return { error: errorMessage.value };
     } finally {
       loading.value = false;
@@ -106,8 +127,10 @@ export function useAuth() {
           email,
           user_metadata: { nickname: data.user?.nickname || nickname || email.split('@')[0] },
         } as any);
-        if (data.token) {
-          uni.setStorageSync('auth_token', data.token);
+        // 后端当前返回 access_token，同时兼容旧版 token 字段。
+        const accessToken = data.access_token || data.token;
+        if (accessToken) {
+          uni.setStorageSync('auth_token', accessToken);
         }
         errorMessage.value = '';
         return { error: null };
@@ -117,7 +140,7 @@ export function useAuth() {
         return { error: errorMessage.value };
       }
     } catch (e: any) {
-      errorMessage.value = e?.errMsg || '网络连接失败，请检查网络';
+      errorMessage.value = translateNetworkError(e);
       return { error: errorMessage.value };
     } finally {
       loading.value = false;

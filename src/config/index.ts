@@ -6,4 +6,4 @@
  */
 
 /** 后端 API 基础地址 */
-export const API_BASE = 'http://47.113.220.182:8000';
+export const API_BASE = 'https://ai-etf.xyz';

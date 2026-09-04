@@ -82,22 +82,21 @@ function handlePlusClick() { emit('plus'); }
 
 <style lang="scss" scoped>
 .input-area {
+  flex-shrink: 0;
   @include flex(row, center, center);
-  gap: $spacing-md;
   padding: $spacing-sm $spacing-base $spacing-base;
   background-color: $color-bg-primary;
   position: relative;
 
-  /* 顶部阴影分隔线 */
-  &::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 2rpx;
-    background: linear-gradient(to right, transparent, $color-border, transparent);
-  }
+  /* 顶部阴影分隔线（小程序不支持 ::before 伪元素，已移除渐变分隔线） */
+}
+
+.action-btn + .input-field-wrapper {
+  margin-left: $spacing-md;
+}
+
+.input-field-wrapper + .send-btn {
+  margin-left: $spacing-md;
 }
 
 /* 语音/加号按钮 */
@@ -106,11 +105,6 @@ function handlePlusClick() { emit('plus'); }
   width: 80rpx;
   height: 80rpx;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.7;
-    transform: scale(0.92);
-  }
 }
 
 .input-field-wrapper {
@@ -146,10 +140,6 @@ function handlePlusClick() { emit('plus'); }
   @include flex-center;
   width: 56rpx;
   height: 56rpx;
-
-  &:active {
-    opacity: 0.7;
-  }
 }
 
 .send-btn {
@@ -159,11 +149,6 @@ function handlePlusClick() { emit('plus'); }
   background-color: $color-border;
   border-radius: 56rpx;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.8;
-    transform: scale(0.95);
-  }
 }
 
 .send-btn--active {

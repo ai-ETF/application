@@ -11,8 +11,8 @@
  */
 
 <template>
-  <view class="page-container">
-    <view class="login-card">
+  <view class="page-container" :style="{ minHeight: windowHeight + 'px', paddingTop: statusBarHeight + 'px' }">
+    <view class="login-wrap">
       <!-- LOGO 和标题 -->
       <view class="header-section">
         <view class="logo-wrapper">
@@ -86,6 +86,10 @@
 import { ref, computed } from 'vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useAuth } from '@/composables/useAuth';
+import { useSystemInfo } from '@/composables/useSystemInfo';
+
+/** 窗口高度 + 状态栏高度，用于页面全屏适配 */
+const { windowHeight, statusBarHeight } = useSystemInfo();
 
 // ==================== 状态 ====================
 
@@ -147,31 +151,37 @@ function handleGoRegister() {
 </script>
 
 <style lang="scss" scoped>
+/* ==================== 页面容器：全屏垂直居中 ==================== */
 .page-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
   justify-content: center;
-  min-height: 100vh;
-  padding: $spacing-xl;
+  padding: 0 32rpx;
   background-color: $color-bg-primary;
+  box-sizing: border-box;
 }
 
-.login-card {
+.login-wrap {
   width: 100%;
   max-width: 640rpx;
-  display: flex;
-  flex-direction: column;
-  gap: $spacing-2xl;
+  align-self: center;
 }
 
 /* ==================== 头部区域 ==================== */
+/* Logo ↔ 标题：20px (40rpx) */
 .header-section {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: $spacing-md;
-  padding-top: $spacing-xl;
+  margin-bottom: 72rpx;  /* 标题 ↔ 邮箱输入框：36px (72rpx) */
+
+  .logo-wrapper + .app-title {
+    margin-top: 40rpx;  /* Logo ↔ AI-ETF：20px */
+  }
+
+  .app-title + .app-subtitle {
+    margin-top: 16rpx;
+  }
 }
 
 .logo-wrapper {
@@ -179,7 +189,7 @@ function handleGoRegister() {
   width: 120rpx;
   height: 120rpx;
   background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
-  border-radius: $radius-lg;
+  border-radius: 28rpx;
   box-shadow: 0 8rpx 24rpx rgba($color-brand-primary, 0.3);
 }
 
@@ -199,7 +209,21 @@ function handleGoRegister() {
 .form-section {
   display: flex;
   flex-direction: column;
-  gap: $spacing-base;
+
+  /* 输入框间距：16px (32rpx) */
+  .input-group + .input-group {
+    margin-top: 32rpx;
+  }
+
+  .input-group + .error-box {
+    margin-top: 32rpx;
+  }
+
+  /* 密码框/错误 ↔ 继续按钮：24px (48rpx) */
+  .input-group + .submit-btn,
+  .error-box + .submit-btn {
+    margin-top: 48rpx;
+  }
 }
 
 .input-group {
@@ -208,15 +232,10 @@ function handleGoRegister() {
   height: 112rpx;
   padding: 0 $spacing-base;
   background-color: $color-bg-card;
-  border-radius: $radius-lg;
+  border-radius: $radius-base;
   border: 2rpx solid $color-border;
   box-shadow: $shadow-sm;
   transition: all $transition-fast $ease-in-out;
-
-  &:focus-within {
-    border-color: $color-brand-primary;
-    box-shadow: 0 0 0 4rpx rgba($color-brand-primary, 0.08), $shadow-sm;
-  }
 }
 
 .input-icon-wrap {
@@ -226,9 +245,7 @@ function handleGoRegister() {
 }
 
 .eye-btn {
-  &:active {
-    opacity: 0.4;
-  }
+  /* 小程序适配：移除 :active（不支持） */
 }
 
 .input-field {
@@ -247,8 +264,11 @@ function handleGoRegister() {
 .error-box {
   display: flex;
   align-items: center;
-  gap: $spacing-sm;
   padding: $spacing-md $spacing-base;
+
+  .svg-icon + .error-text {
+    margin-left: $spacing-sm;
+  }
   background-color: rgba($color-up, 0.85);
   border-radius: $radius-md;
 }
@@ -265,14 +285,9 @@ function handleGoRegister() {
   justify-content: center;
   height: 112rpx;
   background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
-  border-radius: $radius-lg;
-  box-shadow: 0 4rpx 16rpx rgba($color-brand-primary, 0.3);
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba($color-brand-primary, 0.35);
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.9;
-    transform: scale(0.98);
-  }
 }
 
 .submit-btn--disabled {
@@ -287,12 +302,18 @@ function handleGoRegister() {
 }
 
 /* ==================== 底部区域 ==================== */
+/* 登录按钮 ↔ 忘记密码/注册：28px (56rpx)，底部安全区 30px */
 .footer-section {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: $spacing-base;
-  padding-top: $spacing-sm;
+  margin-top: 56rpx;
+  padding-bottom: calc(30px + env(safe-area-inset-bottom));
+
+  .footer-link + .footer-divider,
+  .footer-divider + .footer-link {
+    margin-left: $spacing-base;
+  }
 }
 
 .footer-link {

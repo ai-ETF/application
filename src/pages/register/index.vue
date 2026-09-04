@@ -11,8 +11,8 @@
  */
 
 <template>
-  <view class="page-container">
-    <view class="register-card">
+  <view class="page-container" :style="{ minHeight: windowHeight + 'px', paddingTop: statusBarHeight + 'px' }">
+    <view class="register-wrap">
       <!-- 标题 -->
       <view class="header-section">
         <text class="page-title">创建账户</text>
@@ -96,6 +96,10 @@
 import { ref, computed } from 'vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useAuth } from '@/composables/useAuth';
+import { useSystemInfo } from '@/composables/useSystemInfo';
+
+/** 窗口高度 + 状态栏高度，用于页面全屏适配 */
+const { windowHeight, statusBarHeight } = useSystemInfo();
 
 // ==================== 状态 ====================
 
@@ -140,25 +144,32 @@ function handleGoLogin() {
 </script>
 
 <style lang="scss" scoped>
+/* ==================== 页面容器：全屏垂直居中 ==================== */
 .page-container {
-  @include flex(column, center, center);
-  min-height: 100vh;
-  padding: $spacing-xl;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 0 32rpx;
   background-color: $color-bg-primary;
+  box-sizing: border-box;
 }
 
-.register-card {
+.register-wrap {
   width: 100%;
   max-width: 640rpx;
-  @include flex(column, flex-start, stretch);
-  gap: $spacing-2xl;
+  align-self: center;
 }
 
 /* ==================== 头部区域 ==================== */
 .header-section {
-  @include flex(column, center, center);
-  gap: $spacing-sm;
-  padding-top: $spacing-2xl;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 72rpx;
+
+  .page-title + .page-subtitle {
+    margin-top: 20rpx;
+  }
 }
 
 .page-title {
@@ -175,36 +186,39 @@ function handleGoLogin() {
 
 /* ==================== 表单区域 ==================== */
 .form-section {
-  @include flex(column, flex-start, stretch);
-  gap: $spacing-base;
+  display: flex;
+  flex-direction: column;
+
+  .input-group + .input-group {
+    margin-top: 32rpx;
+  }
+
+  .input-group + .error-box {
+    margin-top: 32rpx;
+  }
+
+  .input-group + .submit-btn,
+  .error-box + .submit-btn {
+    margin-top: 48rpx;
+  }
 }
 
 .input-group {
-  @include flex(row, flex-start, center);
+  display: flex;
+  align-items: center;
   height: 112rpx;
   padding: 0 $spacing-base;
   background-color: $color-bg-card;
-  border-radius: $radius-lg;
+  border-radius: $radius-base;
   border: 2rpx solid $color-border;
   box-shadow: $shadow-sm;
   transition: all $transition-fast $ease-in-out;
-
-  &:focus-within {
-    border-color: $color-brand-primary;
-    box-shadow: 0 0 0 4rpx rgba($color-brand-primary, 0.08), $shadow-sm;
-  }
 }
 
 .input-icon-wrap {
   @include flex-center;
   width: 56rpx;
   height: 56rpx;
-}
-
-.eye-btn {
-  &:active {
-    opacity: 0.4;
-  }
 }
 
 .input-field {
@@ -221,9 +235,13 @@ function handleGoLogin() {
 
 /* ==================== 错误提示区 ==================== */
 .error-box {
-  @include flex(row, flex-start, center);
-  gap: $spacing-sm;
+  display: flex;
+  align-items: center;
   padding: $spacing-md $spacing-base;
+
+  .svg-icon + .error-text {
+    margin-left: $spacing-sm;
+  }
   background-color: rgba($color-up, 0.85);
   border-radius: $radius-md;
 }
@@ -235,17 +253,14 @@ function handleGoLogin() {
 
 /* ==================== 提交按钮 ==================== */
 .submit-btn {
-  @include flex-center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 112rpx;
   background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
-  border-radius: $radius-lg;
-  box-shadow: 0 4rpx 16rpx rgba($color-brand-primary, 0.3);
+  border-radius: 24rpx;
+  box-shadow: 0 8rpx 24rpx rgba($color-brand-primary, 0.35);
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.9;
-    transform: scale(0.98);
-  }
 }
 
 .submit-btn--disabled {
@@ -261,9 +276,15 @@ function handleGoLogin() {
 
 /* ==================== 底部区域 ==================== */
 .footer-section {
-  @include flex(row, center, center);
-  gap: $spacing-xs;
-  padding-top: $spacing-sm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 56rpx;
+  padding-bottom: calc(30px + env(safe-area-inset-bottom));
+
+  .footer-text + .footer-link {
+    margin-left: $spacing-xs;
+  }
 }
 
 .footer-text {
@@ -276,6 +297,4 @@ function handleGoLogin() {
   color: $color-brand-primary;
   font-weight: $font-weight-medium;
 }
-
-/* ==================== 输入框中的图标注入 ==================== */
 </style>

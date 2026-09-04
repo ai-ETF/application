@@ -18,10 +18,10 @@
  */
 
 <template>
-  <view class="page-container">
+  <view class="page-container" :style="{ minHeight: windowHeight + 'px' }">
     <scroll-view class="page-scroll" scroll-y>
       <!-- ==================== 用户信息头部 ==================== -->
-      <view class="user-header">
+      <view class="user-header" :style="{ paddingTop: statusBarHeight + 'px' }">
         <view class="header-content">
           <!-- 左侧：头像 + 昵称 -->
           <view class="user-info-section">
@@ -128,6 +128,10 @@ import { ref, computed } from 'vue';
 import TabBar from '@/components/common/TabBar.vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useUserStore } from '@/stores/user';
+import { useSystemInfo } from '@/composables/useSystemInfo';
+
+/** 窗口高度 + 状态栏高度，用于页面全屏适配 */
+const { windowHeight, statusBarHeight } = useSystemInfo();
 
 // ==================== Store ====================
 
@@ -227,9 +231,7 @@ function handleFeedbackClick() {
 .page-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
   background-color: $color-bg-primary;
-  overflow: hidden;
 }
 
 .page-scroll {
@@ -248,7 +250,10 @@ function handleFeedbackClick() {
 
 .user-info-section {
   @include flex(row, flex-start, center);
-  gap: $spacing-base;
+
+  .avatar + .user-text-group {
+    margin-left: $spacing-base;
+  }
 }
 
 /* 头像：圆形，浅琥珀色背景，白色昵称首字 */
@@ -270,7 +275,10 @@ function handleFeedbackClick() {
 /* 用户文字组 */
 .user-text-group {
   @include flex(column, center, flex-start);
-  gap: $spacing-xs;
+
+  .username + .welcome-text {
+    margin-top: $spacing-xs;
+  }
 }
 
 .username {
@@ -288,7 +296,10 @@ function handleFeedbackClick() {
 /* 操作图标区域 */
 .header-actions {
   @include flex(row, flex-end, center);
-  gap: $spacing-sm;
+
+  .action-icon-wrap + .action-icon-wrap {
+    margin-left: $spacing-sm;
+  }
 }
 
 .action-icon-wrap {
@@ -299,18 +310,16 @@ function handleFeedbackClick() {
   border-radius: $radius-circle;
   box-shadow: $shadow-sm;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.7;
-    transform: scale(0.92);
-  }
 }
 
 /* ==================== 主要内容区域 ==================== */
 .main-content {
   @include flex(column, flex-start, stretch);
-  gap: $spacing-md;
   padding: 0 $spacing-base;
+
+  .holdings-card + .menu-group {
+    margin-top: $spacing-md;
+  }
 }
 
 /* ==================== 持仓卡片 ==================== */
@@ -319,16 +328,14 @@ function handleFeedbackClick() {
   padding: $card-padding;
   box-shadow: $shadow-base;
   transition: all $transition-base $ease-out;
-
-  &:active {
-    opacity: 0.9;
-    transform: scale(1.01);
-  }
 }
 
 .card-title-row {
   @include flex(row, flex-start, center);
-  gap: $spacing-sm;
+
+  .svg-icon + .card-title {
+    margin-left: $spacing-sm;
+  }
 }
 
 .card-title {
@@ -340,8 +347,11 @@ function handleFeedbackClick() {
 /* 金额区域：数字 + 单位 */
 .amount-section {
   @include flex(row, flex-end, baseline);
-  gap: $spacing-sm;
   margin-top: $spacing-sm;
+
+  .amount-value + .amount-unit {
+    margin-left: $spacing-sm;
+  }
 }
 
 .amount-value {
@@ -368,16 +378,14 @@ function handleFeedbackClick() {
   @include flex(row, space-between, center);
   padding: $spacing-base $card-padding;
   transition: all $transition-fast $ease-in-out;
-
-  &:active {
-    opacity: 0.8;
-    background-color: $color-bg-primary;
-  }
 }
 
 .menu-left {
   @include flex(row, flex-start, center);
-  gap: $spacing-base;
+
+  .menu-icon-box + .menu-text {
+    margin-left: $spacing-base;
+  }
 }
 
 /* 菜单图标容器：圆角方形琥珀背景 */
@@ -397,7 +405,10 @@ function handleFeedbackClick() {
 
 .menu-right {
   @include flex(row, flex-end, center);
-  gap: $spacing-sm;
+
+  .menu-tag + .svg-icon {
+    margin-left: $spacing-sm;
+  }
 }
 
 /* 操作标签文字 */
@@ -420,6 +431,6 @@ function handleFeedbackClick() {
 
 /* ==================== 底部占位 ==================== */
 .scroll-placeholder {
-  height: 240rpx;
+  height: $spacing-xl;
 }
 </style>
