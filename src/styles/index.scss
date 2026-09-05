@@ -1,2 +1,241 @@
-/* 空文件 */
-body{}
+/* ============================================
+ * 全局样式入口
+ * ============================================
+ * 由 App.vue 引入，所有样式自动生效
+ */
+
+/* ============================================
+ * Markdown 渲染样式
+ * ============================================
+ * rich-text 组件内部节点不受 scoped 样式影响，需要全局样式
+ * 选择器附加 .markdown-body 防止污染其他 rich-text
+ */
+
+.markdown-body {
+  font-size: 28rpx;
+  line-height: 1.8em;
+  color: $color-text-primary;
+  word-break: break-word;
+}
+
+/* 标题 */
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  margin: 24rpx 0 16rpx;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+}
+
+.markdown-body h1 { font-size: 40rpx; }
+.markdown-body h2 { font-size: 36rpx; }
+.markdown-body h3 { font-size: 32rpx; }
+.markdown-body h4 { font-size: 30rpx; }
+
+/* 段落 */
+.markdown-body p {
+  margin: 12rpx 0;
+  &:first-child { margin-top: 0; }
+  &:last-child { margin-bottom: 0; }
+}
+
+/* 列表 */
+.markdown-body ul,
+.markdown-body ol {
+  margin: 12rpx 0;
+  padding-left: 40rpx;
+}
+
+.markdown-body li {
+  margin: 8rpx 0;
+  line-height: 1.7em;
+}
+
+/* 加粗 / 斜体 */
+.markdown-body strong {
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+}
+
+.markdown-body em {
+  font-style: italic;
+}
+
+/* 链接 */
+.markdown-body a {
+  color: $color-brand-primary;
+  text-decoration: underline;
+}
+
+/* 引用块 */
+.markdown-body blockquote {
+  margin: 16rpx 0;
+  padding: 12rpx 24rpx;
+  border-left: 6rpx solid $color-brand-primary;
+  background-color: $color-brand-bg;
+  border-radius: 4rpx;
+  color: $color-text-secondary;
+}
+
+/* 行内代码 */
+.markdown-body code {
+  font-family: 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+  padding: 4rpx 10rpx;
+  background-color: #F5F2ED;
+  border-radius: 6rpx;
+  font-size: 24rpx;
+  color: #B45309;
+}
+
+/* 代码块 */
+.markdown-body pre {
+  margin: 16rpx 0;
+  padding: 24rpx;
+  background-color: #1E1E1E;
+  border-radius: 16rpx;
+  overflow-x: auto;
+  position: relative;
+}
+
+.markdown-body pre code {
+  background: none;
+  padding: 0;
+  border-radius: 0;
+  font-size: 22rpx;
+  line-height: 1.6em;
+  color: #D4D4D4;
+}
+
+/* 代码块语言标签 */
+.markdown-body pre::before {
+  content: attr(data-language);
+  display: block;
+  margin-bottom: 16rpx;
+  font-size: 20rpx;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 2rpx;
+}
+
+/* 水平分割线 */
+.markdown-body hr {
+  margin: 24rpx 0;
+  border: none;
+  height: 2rpx;
+  background-color: $color-border-light;
+}
+
+/* 表格 */
+.markdown-body table {
+  width: 100%;
+  margin: 16rpx 0;
+  border-collapse: collapse;
+  font-size: 24rpx;
+}
+
+.markdown-body th,
+.markdown-body td {
+  padding: 12rpx 16rpx;
+  border: 2rpx solid $color-border;
+  text-align: left;
+}
+
+.markdown-body th {
+  background-color: $color-brand-bg;
+  font-weight: $font-weight-semibold;
+}
+
+.markdown-body tr:nth-child(even) {
+  background-color: $color-bg-primary;
+}
+
+/* 图片 */
+.markdown-body img {
+  max-width: 100%;
+  border-radius: 12rpx;
+  margin: 16rpx 0;
+}
+
+/* ============================================
+ * highlight.js 代码高亮主题 (Dark+)
+ * ============================================
+ * 适配深色代码块背景
+ */
+
+.hljs {
+  color: #D4D4D4;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-section,
+.hljs-link {
+  color: #569CD6;
+}
+
+.hljs-string,
+.hljs-title,
+.hljs-name,
+.hljs-type,
+.hljs-attribute,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-addition,
+.hljs-variable,
+.hljs-template-tag,
+.hljs-template-variable {
+  color: #CE9178;
+}
+
+.hljs-comment,
+.hljs-quote,
+.hljs-deletion,
+.hljs-meta {
+  color: #6A9955;
+}
+
+.hljs-number,
+.hljs-literal-number {
+  color: #B5CEA8;
+}
+
+.hljs-built_in,
+.hljs-builtin-name {
+  color: #4EC9B0;
+}
+
+.hljs-selector-class,
+.hljs-selector-id {
+  color: #D7BA7D;
+}
+
+.hljs-regexp,
+.hljs-symbol {
+  color: #D16969;
+}
+
+.hljs-subst {
+  color: #D4D4D4;
+}
+
+.hljs-punctuation {
+  color: #D4D4D4;
+}
+
+.hljs-params {
+  color: #D4D4D4;
+}
+
+.hljs-function {
+  color: #DCDCAA;
+}
+
+.hljs-tag {
+  color: #569CD6;
+}
+
+.hljs-attr {
+  color: #9CDCFE;
+}

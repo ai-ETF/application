@@ -3,7 +3,6 @@
  * 设置页 - 个人中心
  * ============================================
  * 用户个人信息展示、持仓总览、功能菜单入口
- * 设计稿参考：pencil/center.pen
  *
  * 页面结构：
  * - 顶部：用户头像 + 昵称 + 操作按钮（通知、更多）
@@ -12,33 +11,40 @@
  * - 底部导航：TabBar 组件
  *
  * 设计风格：
- * - 背景色：#F9F6F0（温暖米色）
- * - 卡片背景：#FFFFFF，边框 #E8E3DA
- * - 头像背景：#EFEAE2，图标色 #C07A4A
- * - 强调色：#C07A4A（橙棕色）
- * - 箭头色：#BFB7AC
+ * - 背景色：$color-bg-primary（温暖米色）
+ * - 卡片背景：$color-bg-card，边框 $color-border-card
+ * - 头像背景：$color-brand-bg（浅琥珀色）
+ * - 强调色：$color-brand-primary（琥珀棕）
  */
+
 <template>
-  <view class="page-container">
+  <view class="page-container" :style="{ minHeight: windowHeight + 'px' }">
     <scroll-view class="page-scroll" scroll-y>
       <!-- ==================== 用户信息头部 ==================== -->
-      <view class="user-header">
+      <view class="user-header" :style="{ paddingTop: statusBarHeight + 'px' }">
         <view class="header-content">
           <!-- 左侧：头像 + 昵称 -->
           <view class="user-info-section">
-            <!-- 头像：60x60pt，圆形，浅米色背景 -->
+            <!-- 头像：圆形，浅琥珀色背景，昵称首字 -->
             <view class="avatar">
-              <text class="avatar-icon">👤</text>
+              <text class="avatar-text">{{ userStore.userInfo.nickname.charAt(0) }}</text>
             </view>
-            <!-- 用户昵称 -->
-            <text class="username">{{ userStore.userInfo.nickname }}</text>
+            <!-- 用户名 + 欢迎文案 -->
+            <view class="user-text-group">
+              <text class="username">{{ userStore.userInfo.nickname }}</text>
+              <text class="welcome-text">欢迎回来</text>
+            </view>
           </view>
           <!-- 右侧：操作图标 -->
           <view class="header-actions">
             <!-- 通知按钮 -->
-            <text class="action-icon" @tap="handleNotification">🔔</text>
+            <view class="action-icon-wrap" @tap="handleNotification">
+              <SvgIcon name="bell" size="44rpx" color="primary" />
+            </view>
             <!-- 更多按钮 -->
-            <text class="action-icon" @tap="handleMore">⋯</text>
+            <view class="action-icon-wrap" @tap="handleMore">
+              <SvgIcon name="more-horizontal" size="44rpx" color="primary" />
+            </view>
           </view>
         </view>
       </view>
@@ -47,41 +53,64 @@
       <view class="main-content">
         <!-- 我的持仓卡片 -->
         <view class="holdings-card" @tap="handleHoldingsClick">
-          <text class="card-title">我的持仓</text>
+          <view class="card-title-row">
+            <SvgIcon name="briefcase" size="36rpx" color="primary" />
+            <text class="card-title">我的持仓</text>
+          </view>
           <view class="amount-section">
             <text class="amount-value">{{ holdingsAmount }}</text>
             <text class="amount-unit">元</text>
           </view>
         </view>
 
-        <!-- 新闻订阅菜单项 -->
-        <view class="menu-card" @tap="handleNewsClick">
-          <view class="menu-left">
-            <text class="menu-icon">📊</text>
-            <text class="menu-text">新闻订阅</text>
+        <!-- 菜单列表 -->
+        <view class="menu-group">
+          <!-- 新闻订阅菜单项 -->
+          <view class="menu-card" @tap="handleNewsClick">
+            <view class="menu-left">
+              <view class="menu-icon-box">
+                <SvgIcon name="file-text" size="36rpx" color="brand" />
+              </view>
+              <text class="menu-text">新闻订阅</text>
+            </view>
+            <view class="menu-right">
+              <SvgIcon name="chevron-right" size="32rpx" color="tertiary" />
+            </view>
           </view>
-          <text class="menu-arrow">→</text>
-        </view>
 
-        <!-- 风险画像测评菜单项 -->
-        <view class="menu-card" @tap="handleRiskClick">
-          <view class="menu-left">
-            <text class="menu-icon">📝</text>
-            <text class="menu-text">风险画像测评</text>
-          </view>
-          <view class="menu-right">
-            <text class="menu-action">去测评</text>
-            <text class="menu-action-arrow">→</text>
-          </view>
-        </view>
+          <!-- 分割线 -->
+          <view class="menu-divider"></view>
 
-        <!-- 意见反馈菜单项 -->
-        <view class="menu-card" @tap="handleFeedbackClick">
-          <view class="menu-left">
-            <text class="menu-icon">💬</text>
-            <text class="menu-text">意见反馈</text>
+          <!-- 风险画像测评菜单项 -->
+          <view class="menu-card" @tap="handleRiskClick">
+            <view class="menu-left">
+              <view class="menu-icon-box">
+                <SvgIcon name="clipboard" size="36rpx" color="brand" />
+              </view>
+              <text class="menu-text">风险画像测评</text>
+            </view>
+            <view class="menu-right">
+              <text v-if="!userStore.userInfo.hasRiskAssessment" class="menu-tag">去测评</text>
+              <text v-else class="menu-tag menu-tag--done">已测评</text>
+              <SvgIcon name="chevron-right" size="32rpx" color="tertiary" />
+            </view>
           </view>
-          <text class="menu-arrow">→</text>
+
+          <!-- 分割线 -->
+          <view class="menu-divider"></view>
+
+          <!-- 意见反馈菜单项 -->
+          <view class="menu-card" @tap="handleFeedbackClick">
+            <view class="menu-left">
+              <view class="menu-icon-box">
+                <SvgIcon name="message-square" size="36rpx" color="brand" />
+              </view>
+              <text class="menu-text">意见反馈</text>
+            </view>
+            <view class="menu-right">
+              <SvgIcon name="chevron-right" size="32rpx" color="tertiary" />
+            </view>
+          </view>
         </view>
       </view>
 
@@ -97,7 +126,12 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import TabBar from '@/components/common/TabBar.vue';
+import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useUserStore } from '@/stores/user';
+import { useSystemInfo } from '@/composables/useSystemInfo';
+
+/** 窗口高度 + 状态栏高度，用于页面全屏适配 */
+const { windowHeight, statusBarHeight } = useSystemInfo();
 
 // ==================== Store ====================
 
@@ -107,7 +141,7 @@ const userStore = useUserStore();
 // ==================== 状态定义 ====================
 
 /** 持仓金额（模拟数据，实际从 API 获取） */
-const holdingsAmountValue = ref<number>(0);
+const holdingsAmountValue = ref<number>(186500);
 
 /** 格式化后的持仓金额 */
 const holdingsAmount = computed(() => {
@@ -126,9 +160,6 @@ const holdingsAmount = computed(() => {
 function init() {
   userStore.initAuth();
   console.log('[SettingsPage] 页面初始化，用户:', userStore.userInfo.nickname);
-
-  // TODO: 实际项目中从 API 获取持仓金额
-  // fetchHoldingsAmount();
 }
 
 // 页面创建时初始化
@@ -174,15 +205,11 @@ function handleNewsClick() {
 
 /**
  * 风险画像测评点击
- * @description 进入风险测评页面或显示已完成提示
+ * @description 进入风险测评页面
  */
 function handleRiskClick() {
   console.log('[SettingsPage] 点击风险画像测评');
-  if (userStore.userInfo.hasRiskAssessment) {
-    uni.showToast({ title: '您已完成风险测评', icon: 'none' });
-  } else {
-    uni.showToast({ title: '风险测评功能开发中', icon: 'none' });
-  }
+  uni.navigateTo({ url: '/pages/risk-assessment/index' });
 }
 
 /**
@@ -200,183 +227,206 @@ function handleFeedbackClick() {
 .page-container {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  background-color: #F9F6F0;
+  background-color: $color-bg-primary;
 }
 
 .page-scroll {
   flex: 1;
-  overflow: hidden;
+  min-height: 0;
 }
 
 /* ==================== 用户信息头部 ==================== */
 .user-header {
-  padding: 48rpx 32rpx;
+  padding: $spacing-xl $spacing-base $spacing-lg;
 }
 
 .header-content {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @include flex(row, space-between, center);
 }
 
 .user-info-section {
-  display: flex;
-  align-items: center;
-  gap: 32rpx;
+  @include flex(row, flex-start, center);
+
+  .avatar + .user-text-group {
+    margin-left: $spacing-base;
+  }
 }
 
-/* 头像：60x60pt，圆形，浅米色背景，橙棕色图标 */
+/* 头像：圆形，浅琥珀色背景，白色昵称首字 */
 .avatar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  @include flex-center;
   width: 120rpx;
   height: 120rpx;
-  background-color: #EFEAE2;
-  border-radius: 50%;
+  background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
+  border-radius: $radius-circle;
+  box-shadow: 0 4rpx 12rpx rgba($color-brand-primary, 0.3);
 }
 
-.avatar-icon {
-  font-size: 48rpx;
-  text-align: center;
+.avatar-text {
+  font-size: $font-size-3xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-white;
 }
 
-/* 用户昵称 */
+/* 用户文字组 */
+.user-text-group {
+  @include flex(column, center, flex-start);
+
+  .username + .welcome-text {
+    margin-top: $spacing-xs;
+  }
+}
+
 .username {
-  font-size: 48rpx;
-  font-weight: 600;
-  color: #1A1A1A;
+  font-size: $font-size-3xl;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
   letter-spacing: 0.5rpx;
+}
+
+.welcome-text {
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
 }
 
 /* 操作图标区域 */
 .header-actions {
-  display: flex;
-  align-items: center;
-  gap: 32rpx;
+  @include flex(row, flex-end, center);
+
+  .action-icon-wrap + .action-icon-wrap {
+    margin-left: $spacing-sm;
+  }
 }
 
-.action-icon {
-  font-size: 48rpx;
-  color: #1A1A1A;
-
-  &:active {
-    opacity: 0.7;
-  }
+.action-icon-wrap {
+  @include flex-center;
+  width: 80rpx;
+  height: 80rpx;
+  background-color: $color-bg-card;
+  border-radius: $radius-circle;
+  box-shadow: $shadow-sm;
+  transition: all $transition-fast $ease-in-out;
 }
 
 /* ==================== 主要内容区域 ==================== */
 .main-content {
-  display: flex;
-  flex-direction: column;
-  gap: 32rpx;
-  padding: 0 32rpx;
+  @include flex(column, flex-start, stretch);
+  padding: 0 $spacing-base;
+
+  .holdings-card + .menu-group {
+    margin-top: $spacing-md;
+  }
 }
 
 /* ==================== 持仓卡片 ==================== */
 .holdings-card {
-  display: flex;
-  flex-direction: column;
-  gap: 32rpx;
-  background-color: #FFFFFF;
-  border-radius: 32rpx;
-  padding: 40rpx;
-  border: 2rpx solid #E8E3DA;
-  transition: all 0.2s ease;
+  @include card;
+  padding: $card-padding;
+  box-shadow: $shadow-base;
+  transition: all $transition-base $ease-out;
+}
 
-  &:active {
-    opacity: 0.9;
-    transform: scale(1.01);
+.card-title-row {
+  @include flex(row, flex-start, center);
+
+  .svg-icon + .card-title {
+    margin-left: $spacing-sm;
   }
 }
 
 .card-title {
-  font-size: 40rpx;
-  font-weight: 500;
-  color: #1A1A1A;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
 }
 
 /* 金额区域：数字 + 单位 */
 .amount-section {
-  display: flex;
-  justify-content: flex-end;
-  align-items: baseline;
-  gap: 16rpx;
+  @include flex(row, flex-end, baseline);
+  margin-top: $spacing-sm;
+
+  .amount-value + .amount-unit {
+    margin-left: $spacing-sm;
+  }
 }
 
 .amount-value {
-  font-size: 72rpx;
-  font-weight: 700;
-  color: #1A1A1A;
+  font-size: $font-size-4xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
   letter-spacing: 1rpx;
 }
 
 .amount-unit {
-  font-size: 36rpx;
-  color: #8C857A;
+  font-size: $font-size-xl;
+  color: $color-text-tertiary;
 }
 
-/* ==================== 菜单卡片 ==================== */
-.menu-card {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background-color: #FFFFFF;
-  border-radius: 32rpx;
-  padding: 40rpx;
-  border: 2rpx solid #E8E3DA;
-  transition: all 0.2s ease;
+/* ==================== 菜单组 ==================== */
+.menu-group {
+  @include card;
+  padding: 0;
+  overflow: hidden;
+}
 
-  &:active {
-    opacity: 0.9;
-    transform: scale(1.01);
-  }
+/* 菜单卡片（紧凑型） */
+.menu-card {
+  @include flex(row, space-between, center);
+  padding: $spacing-base $card-padding;
+  transition: all $transition-fast $ease-in-out;
 }
 
 .menu-left {
-  display: flex;
-  align-items: center;
-  gap: 32rpx;
+  @include flex(row, flex-start, center);
+
+  .menu-icon-box + .menu-text {
+    margin-left: $spacing-base;
+  }
 }
 
-/* 菜单图标：橙棕色 */
-.menu-icon {
-  font-size: 48rpx;
+/* 菜单图标容器：圆角方形琥珀背景 */
+.menu-icon-box {
+  @include flex-center;
+  width: 72rpx;
+  height: 72rpx;
+  background-color: $color-brand-bg;
+  border-radius: $radius-base;
 }
 
 .menu-text {
-  font-size: 36rpx;
-  font-weight: 500;
-  color: #1A1A1A;
+  font-size: $font-size-lg;
+  font-weight: $font-weight-medium;
+  color: $color-text-primary;
 }
 
 .menu-right {
-  display: flex;
-  align-items: center;
-  gap: 16rpx;
+  @include flex(row, flex-end, center);
+
+  .menu-tag + .svg-icon {
+    margin-left: $spacing-sm;
+  }
 }
 
-/* 操作文字：橙棕色强调 */
-.menu-action {
-  font-size: 32rpx;
-  color: #C07A4A;
+/* 操作标签文字 */
+.menu-tag {
+  font-size: $font-size-sm;
+  color: $color-brand-primary;
+  font-weight: $font-weight-medium;
 }
 
-/* 操作箭头：橙棕色 */
-.menu-action-arrow {
-  font-size: 36rpx;
-  color: #C07A4A;
+.menu-tag--done {
+  color: $color-text-tertiary;
 }
 
-/* 普通箭头：灰色 */
-.menu-arrow {
-  font-size: 36rpx;
-  color: #BFB7AC;
+/* 分割线 */
+.menu-divider {
+  height: 2rpx;
+  background-color: $color-border-light;
+  margin: 0 $spacing-base;
 }
 
 /* ==================== 底部占位 ==================== */
 .scroll-placeholder {
-  height: 240rpx;
+  height: $spacing-xl;
 }
 </style>
