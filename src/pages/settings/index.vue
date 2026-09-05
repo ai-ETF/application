@@ -201,15 +201,11 @@ function handleNewsClick() {
 
 /**
  * 风险画像测评点击
- * @description 进入风险测评页面或显示已完成提示
+ * @description 进入风险测评页面
  */
 function handleRiskClick() {
   console.log('[SettingsPage] 点击风险画像测评');
-  if (userStore.userInfo.hasRiskAssessment) {
-    uni.showToast({ title: '您已完成风险测评', icon: 'none' });
-  } else {
-    uni.showToast({ title: '风险测评功能开发中', icon: 'none' });
-  }
+  uni.navigateTo({ url: '/pages/risk-assessment/index' });
 }
 
 /**

@@ -34,9 +34,12 @@ export const useUserStore = defineStore('user', () => {
   /**
    * 设置用户信息
    * @param info - 用户信息对象
+   * @description 同时持久化到本地存储，保证刷新/重启后 hasRiskAssessment 等字段不丢失
    */
   function setUserInfo(info: Partial<UserInfo>) {
     userInfo.value = { ...userInfo.value, ...info };
+    // 持久化到本地存储，避免冷启动后状态回退到初始值（如 hasRiskAssessment=false）
+    uni.setStorageSync('userInfo', JSON.stringify(userInfo.value));
   }
 
   /**

@@ -29,6 +29,13 @@
       "style": {
         "navigationBarTitleText": "注册"
       }
+    },
+    {
+      "path": "pages/risk-assessment/index",
+      "style": {
+        "navigationBarTitleText": "风险画像测评",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "globalStyle": {
