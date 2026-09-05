@@ -151,6 +151,108 @@ interface WatchlistClearResult {
   removed_count?: number;
 }
 
+// ==================== 风险测评 ====================
+
+/**
+ * 问卷题目选项
+ */
+interface RiskQuestionOption {
+  /** 选项文字 */
+  text: string;
+  /** 选项值 */
+  value: string;
+}
+
+/**
+ * 问卷题目
+ */
+interface RiskQuestion {
+  /** 题目 ID，如 "q1" */
+  id: string;
+  /** 题目内容 */
+  question: string;
+  /** 题目分类 */
+  category: string;
+  /** 选项列表 */
+  options: RiskQuestionOption[];
+}
+
+/**
+ * 问卷响应
+ */
+interface RiskQuestionnaire {
+  /** 问卷 ID */
+  id: string;
+  /** 版本号 */
+  version: string;
+  /** 题目列表 */
+  questions: RiskQuestion[];
+  /** 总题数 */
+  total_questions: number;
+}
+
+/**
+ * 单题答案
+ */
+interface RiskAnswer {
+  /** 题目 ID */
+  question_id: string;
+  /** 选项值 */
+  value: string;
+}
+
+/**
+ * 提交答案请求体
+ */
+interface RiskSubmitRequest {
+  /** 问卷 ID */
+  questionnaire_id: string;
+  /** 答案列表 */
+  answers: RiskAnswer[];
+}
+
+/**
+ * 各维度得分
+ */
+interface RiskDimensionScores {
+  [key: string]: number;
+}
+
+/**
+ * 投资者画像
+ */
+interface RiskProfile {
+  /** 风险等级 moderate/conservative/aggressive */
+  risk_level: string;
+  /** 风险标签，如 "稳健型" */
+  risk_label: string;
+  /** 综合得分 */
+  total_score: number;
+  /** 各维度得分 */
+  dimension_scores: RiskDimensionScores;
+  /** 测评小结 */
+  summary: string;
+  /** 创建时间 */
+  created_at: string;
+}
+
+/**
+ * 提交答案响应
+ */
+interface RiskSubmitResult {
+  success: boolean;
+  message: string;
+  profile: RiskProfile;
+}
+
+/**
+ * 查询画像响应
+ */
+interface RiskProfileResult {
+  has_profile: boolean;
+  profile: RiskProfile | null;
+}
+
 // 导出所有类型
 export {
   type ApiResult,
@@ -160,4 +262,13 @@ export {
   type WatchlistItemRaw,
   type WatchlistOpResult,
   type WatchlistClearResult,
+  type RiskQuestionOption,
+  type RiskQuestion,
+  type RiskQuestionnaire,
+  type RiskAnswer,
+  type RiskSubmitRequest,
+  type RiskDimensionScores,
+  type RiskProfile,
+  type RiskSubmitResult,
+  type RiskProfileResult,
 };
