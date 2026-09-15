@@ -27,12 +27,12 @@
           <view class="user-info-section">
             <!-- 头像：圆形，浅琥珀色背景，昵称首字 -->
             <view class="avatar">
-              <text class="avatar-text">{{ userStore.userInfo.nickname.charAt(0) }}</text>
+              <text class="avatar-text">{{ displayName.charAt(0) }}</text>
             </view>
             <!-- 用户名 + 欢迎文案 -->
             <view class="user-text-group">
-              <text class="username">{{ userStore.userInfo.nickname }}</text>
-              <text class="welcome-text">欢迎回来</text>
+              <text class="username">{{ displayName }}</text>
+              <text class="welcome-text">已安全登录 · 1 小时有效</text>
             </view>
           </view>
           <!-- 右侧：操作图标 -->
@@ -112,6 +112,16 @@
             </view>
           </view>
         </view>
+
+        <!-- 退出登录：先通知后端撤销会话，再清除本地认证信息 -->
+        <view
+          class="logout-card"
+          :class="{ 'logout-card--disabled': authLoading }"
+          @tap="handleLogout"
+        >
+          <SvgIcon name="log-out" size="36rpx" color="brand" />
+          <text class="logout-text">{{ authLoading ? '正在退出...' : '退出登录' }}</text>
+        </view>
       </view>
 
       <!-- 底部占位，防止内容被 TabBar 遮挡 -->
@@ -125,9 +135,13 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import TabBar from '@/components/common/TabBar.vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useUserStore } from '@/stores/user';
+import { useAuthStore } from '@/stores/auth';
+import { useAuth } from '@/composables/useAuth';
+import { getAccountSummary } from '@/api';
 import { useSystemInfo } from '@/composables/useSystemInfo';
 
 /** 窗口高度 + 状态栏高度，用于页面全屏适配 */
@@ -137,11 +151,13 @@ const { windowHeight, statusBarHeight } = useSystemInfo();
 
 /** 用户状态 Store */
 const userStore = useUserStore();
+const authStore = useAuthStore();
+const { logout, loading: authLoading } = useAuth();
 
 // ==================== 状态定义 ====================
 
-/** 持仓金额（模拟数据，实际从 API 获取） */
-const holdingsAmountValue = ref<number>(186500);
+/** 当前 JWT 用户的真实持仓市值。 */
+const holdingsAmountValue = ref<number>(0);
 
 /** 格式化后的持仓金额 */
 const holdingsAmount = computed(() => {
@@ -151,6 +167,9 @@ const holdingsAmount = computed(() => {
   });
 });
 
+/** 以认证身份为准展示当前用户，兼容旧登录态。 */
+const displayName = computed(() => authStore.user?.displayName || userStore.userInfo.nickname || '用户');
+
 // ==================== 生命周期 ====================
 
 /**
@@ -158,12 +177,37 @@ const holdingsAmount = computed(() => {
  * @description 恢复用户登录状态
  */
 function init() {
+  authStore.restoreSession();
   userStore.initAuth();
   console.log('[SettingsPage] 页面初始化，用户:', userStore.userInfo.nickname);
 }
 
+async function handleLogout() {
+  if (authLoading.value) return;
+  const result = await uni.showModal({
+    title: '退出登录',
+    content: '退出后需要重新输入用户名和密码，是否继续？',
+    confirmText: '退出',
+  });
+  if (!result.confirm) return;
+
+  await logout();
+  uni.reLaunch({ url: '/pages/login/index' });
+}
+
 // 页面创建时初始化
 init();
+
+onShow(async () => {
+  try {
+    const account = await getAccountSummary();
+    holdingsAmountValue.value = account.position_value;
+    console.log('[SettingsPage] 当前用户持仓加载成功:', account.position_count);
+  } catch (error) {
+    console.error('[SettingsPage] 加载当前用户持仓失败:', error);
+    holdingsAmountValue.value = 0;
+  }
+});
 
 // ==================== 事件处理函数 ====================
 
@@ -316,6 +360,10 @@ function handleFeedbackClick() {
   .holdings-card + .menu-group {
     margin-top: $spacing-md;
   }
+
+  .menu-group + .logout-card {
+    margin-top: $spacing-md;
+  }
 }
 
 /* ==================== 持仓卡片 ==================== */
@@ -423,6 +471,27 @@ function handleFeedbackClick() {
   height: 2rpx;
   background-color: $color-border-light;
   margin: 0 $spacing-base;
+}
+
+.logout-card {
+  @include card;
+  @include flex-center;
+  padding: $spacing-base;
+  box-shadow: $shadow-sm;
+
+  .svg-icon + .logout-text {
+    margin-left: $spacing-sm;
+  }
+}
+
+.logout-card--disabled {
+  opacity: 0.55;
+}
+
+.logout-text {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-medium;
+  color: $color-brand-primary;
 }
 
 /* ==================== 底部占位 ==================== */

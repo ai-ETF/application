@@ -7,6 +7,7 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
 import type { UserInfo } from '@/types/models.d';
+import { getAuthSession, getUserScopedStorageKey, isAuthSessionValid } from '@/utils/auth';
 
 /**
  * 用户状态 Store
@@ -38,8 +39,9 @@ export const useUserStore = defineStore('user', () => {
    */
   function setUserInfo(info: Partial<UserInfo>) {
     userInfo.value = { ...userInfo.value, ...info };
-    // 持久化到本地存储，避免冷启动后状态回退到初始值（如 hasRiskAssessment=false）
-    uni.setStorageSync('userInfo', JSON.stringify(userInfo.value));
+    // 按登录用户隔离本地展示状态，避免 A 用户状态泄漏给 B 用户。
+    const key = getUserScopedStorageKey('user_info', userInfo.value.userId);
+    uni.setStorageSync(key, JSON.stringify(userInfo.value));
   }
 
   /**
@@ -48,8 +50,6 @@ export const useUserStore = defineStore('user', () => {
    */
   function setToken(newToken: string) {
     token.value = newToken;
-    // 持久化到本地存储
-    uni.setStorageSync('token', newToken);
   }
 
   /**
@@ -63,8 +63,6 @@ export const useUserStore = defineStore('user', () => {
       avatar: '',
       hasRiskAssessment: false,
     };
-    uni.removeStorageSync('token');
-    uni.removeStorageSync('userInfo');
   }
 
   /**
@@ -72,18 +70,29 @@ export const useUserStore = defineStore('user', () => {
    * @description 从本地存储恢复登录状态
    */
   function initAuth() {
-    const savedToken = uni.getStorageSync('token');
-    const savedUserInfo = uni.getStorageSync('userInfo');
-    if (savedToken) {
-      token.value = savedToken;
+    const session = getAuthSession();
+    if (!isAuthSessionValid(session)) {
+      clearAuth();
+      return;
     }
+
+    token.value = session.token;
+    const savedUserInfo = uni.getStorageSync(getUserScopedStorageKey('user_info', session.user.id));
     if (savedUserInfo) {
       try {
         userInfo.value = JSON.parse(savedUserInfo);
+        return;
       } catch (e) {
         console.warn('[UserStore] 解析本地用户信息失败:', e);
       }
     }
+
+    userInfo.value = {
+      userId: session.user.id,
+      nickname: session.user.displayName,
+      avatar: '',
+      hasRiskAssessment: false,
+    };
   }
 
   return {

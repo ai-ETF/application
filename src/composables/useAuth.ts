@@ -1,45 +1,36 @@
-/**
- * ============================================
- * 认证 API 组合式函数
- * ============================================
- * 封装自建后端 API 的认证调用
- * 后端地址通过 config/index.ts 管理
- */
-
+/** 认证业务逻辑：对接 FastAPI + Supabase Auth，并维护一小时本地会话。 */
 import { ref } from 'vue';
-import { useAuthStore } from '@/stores/auth';
 import { API_BASE } from '@/config';
+import { useAuthStore } from '@/stores/auth';
+import { useChatStore } from '@/stores/chat';
+import { useUserStore } from '@/stores/user';
+import { useWatchlistStore } from '@/stores/watchlist';
+import type { AuthTokenResponse, AuthUser, RegisterResponse } from '@/types/auth';
+import { accountDisplayName, accountToBackendEmail, validateUsername } from '@/utils/auth';
 
 const errorMap: Record<string, string> = {
-  'Invalid login credentials': '邮箱或密码错误',
-  'Email not confirmed': '请先验证邮箱',
-  'Invalid email': '邮箱格式不正确',
-  'User already registered': '该邮箱已注册',
-  'Password should be at least 6 characters': '密码至少需要 6 个字符',
+  'Invalid login credentials': '用户名或密码错误',
+  'Email not confirmed': '账号尚未激活，请联系管理员',
+  'Invalid email': '用户名格式不正确',
+  'User already registered': '用户名已存在',
+  'Password should be at least 6 characters': '密码至少需要 8 位',
+  'Password should be at least 8 characters': '密码至少需要 8 位',
 };
 
-function translateError(message: string): string {
-  return errorMap[message] || message;
+function translateError(message: string, statusCode?: number): string {
+  if (statusCode === 409) return '用户名已存在';
+  if (statusCode === 401 || statusCode === 400) return errorMap[message] || '用户名或密码错误';
+  return errorMap[message] || message || '请求失败，请稍后重试';
 }
 
-/**
- * 将微信客户端底层网络错误转换成可定位的提示。
- * 保留原始 errMsg 到日志中，但不记录邮箱、密码或 Token。
- */
 function translateNetworkError(error: any): string {
   const errMsg = String(error?.errMsg || error?.message || '');
   const normalized = errMsg.toLowerCase();
   console.error('[useAuth] 网络请求失败:', errMsg || error);
-
   if (normalized.includes('domain list') || normalized.includes('url not in')) {
     return '请求域名未加入微信小程序合法域名';
   }
-  if (
-    normalized.includes('certificate')
-    || normalized.includes('cert_')
-    || normalized.includes('ssl')
-    || normalized.includes('tls')
-  ) {
+  if (normalized.includes('certificate') || normalized.includes('ssl') || normalized.includes('tls')) {
     return 'HTTPS 安全连接失败，请联系管理员检查服务器证书';
   }
   if (normalized.includes('timeout') || normalized.includes('timed out')) {
@@ -48,99 +39,117 @@ function translateNetworkError(error: any): string {
   return '网络连接失败，请检查网络或联系管理员';
 }
 
+function parseResponseData(raw: unknown): any {
+  if (typeof raw !== 'string') return raw;
+  try { return JSON.parse(raw); } catch { return { message: raw }; }
+}
+
+function responseMessage(data: any): string {
+  if (typeof data?.detail === 'string') return data.detail;
+  if (Array.isArray(data?.detail)) return data.detail[0]?.msg || '提交信息格式不正确';
+  return data?.error || data?.message || '';
+}
+
+/** 清空所有只属于当前用户的内存状态，服务端数据不会被删除。 */
+function resetUserMemory() {
+  useChatStore().resetForAuthChange();
+  useWatchlistStore().resetForAuthChange();
+  useUserStore().clearAuth();
+}
+
+function buildUser(account: string, userId: string): AuthUser {
+  const isLegacyEmail = account.includes('@');
+  const displayName = accountDisplayName(account);
+  return {
+    id: userId,
+    username: displayName,
+    displayName,
+    ...(isLegacyEmail ? { email: account.trim().toLowerCase() } : {}),
+  };
+}
+
 export function useAuth() {
   const authStore = useAuthStore();
   const loading = ref(false);
   const errorMessage = ref('');
 
-  async function login(email: string, password: string) {
-    console.log('[useAuth] ===== 开始登录流程 =====');
+  function validationError(message: string) {
+    errorMessage.value = message;
+    return { error: message };
+  }
 
+  async function login(account: string, password: string) {
+    if (!account.includes('@')) {
+      const usernameError = validateUsername(account);
+      if (usernameError) return validationError(usernameError);
+    }
+    if (!password) return validationError('请输入密码');
+
+    console.log('[useAuth] 开始登录:', accountDisplayName(account));
     loading.value = true;
     errorMessage.value = '';
-
     try {
+      const email = accountToBackendEmail(account);
       const res = await uni.request({
         url: `${API_BASE}/api/secure-chat/login`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
         data: { email, password },
+        timeout: 15000,
       });
-
-      let data: any;
-      if (typeof res.data === 'string') {
-        try { data = JSON.parse(res.data); } catch { data = { error: res.data }; }
-      } else {
-        data = res.data;
+      const data = parseResponseData(res.data) as Partial<AuthTokenResponse> & Record<string, any>;
+      if (res.statusCode === 200 && data.access_token && data.user_id) {
+        const user = buildUser(account, data.user_id);
+        resetUserMemory();
+        authStore.setSession(data.access_token, user, data.expires_in);
+        useUserStore().initAuth();
+        console.log('[useAuth] 登录成功，用户 ID:', data.user_id);
+        return { error: null, user };
       }
-
-      if (res.statusCode === 200 && data?.access_token) {
-        console.log('[useAuth] ✅ 登录成功');
-        authStore.setUserFromSupabase({
-          id: data.user_id || email,
-          email,
-          user_metadata: { nickname: email.split('@')[0] },
-        } as any);
-        if (data.access_token) {
-          uni.setStorageSync('auth_token', data.access_token);
-        }
-        errorMessage.value = '';
-        return { error: null };
-      } else {
-        const msg = data?.error || data?.message || `登录失败 (HTTP ${res.statusCode})`;
-        errorMessage.value = translateError(msg);
-        return { error: errorMessage.value };
-      }
-    } catch (e: any) {
-      errorMessage.value = translateNetworkError(e);
+      errorMessage.value = translateError(responseMessage(data), res.statusCode);
+      return { error: errorMessage.value };
+    } catch (error: any) {
+      errorMessage.value = translateNetworkError(error);
       return { error: errorMessage.value };
     } finally {
       loading.value = false;
     }
   }
 
-  async function register(email: string, password: string, nickname?: string) {
-    console.log('[useAuth] ===== 开始注册流程 =====');
+  async function register(username: string, password: string) {
+    const usernameError = validateUsername(username);
+    if (usernameError) return validationError(usernameError);
+    if (!password) return validationError('请输入密码');
+    if (password.length < 8) return validationError('密码至少需要 8 位');
 
+    console.log('[useAuth] 开始注册:', username.trim());
     loading.value = true;
     errorMessage.value = '';
-
     try {
+      const email = accountToBackendEmail(username);
       const res = await uni.request({
         url: `${API_BASE}/api/secure-chat/register`,
         method: 'POST',
         header: { 'Content-Type': 'application/json' },
-        data: { email, password, nickname },
+        data: { email, password },
+        timeout: 15000,
       });
-
-      let data: any;
-      if (typeof res.data === 'string') {
-        try { data = JSON.parse(res.data); } catch { data = { error: res.data }; }
-      } else {
-        data = res.data;
-      }
-
-      if (res.statusCode === 200 && data?.success === true) {
-        console.log('[useAuth] ✅ 注册成功');
-        authStore.setUserFromSupabase({
-          id: data.user?.id || email,
-          email,
-          user_metadata: { nickname: data.user?.nickname || nickname || email.split('@')[0] },
-        } as any);
-        // 后端当前返回 access_token，同时兼容旧版 token 字段。
-        const accessToken = data.access_token || data.token;
-        if (accessToken) {
-          uni.setStorageSync('auth_token', accessToken);
+      const data = parseResponseData(res.data) as RegisterResponse & Record<string, any>;
+      if (res.statusCode === 200 && data.success) {
+        if (data.access_token && data.user_id) {
+          const user = buildUser(username, data.user_id);
+          resetUserMemory();
+          authStore.setSession(data.access_token, user, data.expires_in);
+          useUserStore().initAuth();
+          console.log('[useAuth] 注册并自动登录成功，用户 ID:', data.user_id);
+          return { error: null, autoLoggedIn: true, user };
         }
-        errorMessage.value = '';
-        return { error: null };
-      } else {
-        const msg = data?.error || data?.message || `注册失败 (HTTP ${res.statusCode})`;
-        errorMessage.value = translateError(msg);
-        return { error: errorMessage.value };
+        return { error: null, autoLoggedIn: false, message: data.message };
       }
-    } catch (e: any) {
-      errorMessage.value = translateNetworkError(e);
+      errorMessage.value = translateError(responseMessage(data), res.statusCode);
+      return { error: errorMessage.value };
+    } catch (error: any) {
+      errorMessage.value = translateNetworkError(error);
       return { error: errorMessage.value };
     } finally {
       loading.value = false;
@@ -150,27 +159,26 @@ export function useAuth() {
   async function logout() {
     console.log('[useAuth] 退出登录');
     loading.value = true;
-
+    const token = authStore.session?.token || '';
     try {
-      await uni.request({
-        url: `${API_BASE}/api/secure-chat/logout`,
-        method: 'POST',
-        header: { 'Content-Type': 'application/json' },
-      });
-    } catch (e) {
-      console.warn('[useAuth] 登出请求异常:', e);
+      if (token) {
+        await uni.request({
+          url: `${API_BASE}/api/secure-chat/logout`,
+          method: 'POST',
+          header: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          timeout: 10000,
+        });
+      }
+    } catch (error) {
+      // 后端不可达时仍清理本地；JWT 最迟会在一小时到期。
+      console.warn('[useAuth] 后端登出异常，继续清理本地会话:', error);
+    } finally {
+      authStore.clearAuth();
+      resetUserMemory();
+      loading.value = false;
     }
-
-    authStore.clearAuth();
-    loading.value = false;
     return { error: null };
   }
 
-  return {
-    loading,
-    errorMessage,
-    login,
-    register,
-    logout,
-  };
+  return { loading, errorMessage, login, register, logout };
 }

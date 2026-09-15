@@ -6,25 +6,14 @@
  */
 
 import { API_BASE } from '@/config';
-
-/** 401 重定向锁，防止连续触发多个跳转 */
-let isRedirecting = false;
+import { expireAuthAndRedirect, getAuthSession, isAuthSessionValid } from '@/utils/auth';
 
 /**
  * 清除登录态并跳转到登录页
  */
 function handleUnauthorized() {
-  if (isRedirecting) return;
-  isRedirecting = true;
-
   console.log('[Request] 收到 401，清除登录态并跳转登录页');
-  uni.removeStorageSync('auth_token');
-  uni.removeStorageSync('auth_user');
-
-  uni.redirectTo({ url: '/pages/login/index' });
-
-  // 延迟释放锁，确保跳转完成
-  setTimeout(() => { isRedirecting = false; }, 2000);
+  expireAuthAndRedirect();
 }
 
 /**
@@ -32,7 +21,12 @@ function handleUnauthorized() {
  * @description 比 uni.request 多了自动注入 token、401 拦截
  */
 export function request<T = any>(options: UniApp.RequestOptions): Promise<UniApp.RequestSuccessCallbackResult & { data: T }> {
-  const token = uni.getStorageSync('auth_token') || '';
+  const session = getAuthSession();
+  if (!isAuthSessionValid(session)) {
+    expireAuthAndRedirect();
+    return Promise.reject(new Error('登录状态已过期，请重新登录'));
+  }
+  const token = session.token;
 
   // 合并请求头
   const header: Record<string, string> = {

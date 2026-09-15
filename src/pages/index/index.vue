@@ -55,6 +55,7 @@ import ChatInputArea from '@/components/chat/ChatInputArea.vue';
 import SessionDrawer from '@/components/chat/SessionDrawer.vue';
 import { useChatStore } from '@/stores/chat';
 import { API_BASE } from '@/config';
+import { expireAuthAndRedirect, getAuthSession, isAuthSessionValid } from '@/utils/auth';
 
 const chatStore = useChatStore();
 
@@ -100,9 +101,7 @@ onMounted(async () => {
 function checkFetchUnauthorized(response: Response): Response {
   if (response.status === 401) {
     console.log('[IndexPage] fetch 收到 401，token 已过期');
-    uni.removeStorageSync('auth_token');
-    uni.removeStorageSync('auth_user');
-    uni.redirectTo({ url: '/pages/login/index' });
+    expireAuthAndRedirect();
     throw new Error('登录已过期，请重新登录');
   }
   return response;
@@ -129,11 +128,12 @@ async function streamChat(question: string, onToken: (token: string) => void): P
 
   console.log('[SSE] 发送请求:', requestBody);
 
-  const token = uni.getStorageSync('auth_token') || '';
-  if (!token) {
-    uni.redirectTo({ url: '/pages/login/index' });
+  const session = getAuthSession();
+  if (!isAuthSessionValid(session)) {
+    expireAuthAndRedirect();
     throw new Error('登录状态已失效，请重新登录');
   }
+  const token = session.token;
 
   // 小程序环境：使用 uni.request + enableChunked 实现流式接收
   // #ifdef MP-WEIXIN
@@ -220,9 +220,7 @@ function streamChatMp(
       success: (res) => {
         clearTimeout(firstTokenTimer);
         if (res.statusCode === 401) {
-          uni.removeStorageSync('auth_token');
-          uni.removeStorageSync('auth_user');
-          uni.redirectTo({ url: '/pages/login/index' });
+          expireAuthAndRedirect();
           reject(new Error('登录已过期，请重新登录'));
           return;
         }
@@ -260,9 +258,7 @@ function streamChatMp(
         }
         // 检查 401
         if (err.errMsg?.includes('401')) {
-          uni.removeStorageSync('auth_token');
-          uni.removeStorageSync('auth_user');
-          uni.redirectTo({ url: '/pages/login/index' });
+          expireAuthAndRedirect();
           reject(new Error('登录已过期，请重新登录'));
           return;
         }

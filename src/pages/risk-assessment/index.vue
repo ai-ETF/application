@@ -180,10 +180,14 @@ import type {
   RiskSubmitResult,
 } from '@/api';
 import { useUserStore } from '@/stores/user';
+import { getUserScopedStorageKey } from '@/utils/auth';
 
 // ==================== Store ====================
 
 const userStore = useUserStore();
+
+/** 风险画像本地缓存按认证用户隔离，后端仍是最终数据来源。 */
+const riskProfileStorageKey = getUserScopedStorageKey('risk_profile');
 
 // ==================== 状态枚举 ====================
 
@@ -274,15 +278,9 @@ const dimensionLabels: Record<string, string> = {
  */
 onMounted(async () => {
   console.log('[RiskAssessment] 页面初始化');
-
-  // 检查是否已完成测评
-  if (userStore.userInfo.hasRiskAssessment) {
-    // 尝试从本地或接口获取画像结果
-    await loadProfileResult();
-  } else {
-    // 加载问卷
-    await loadQuestionnaire();
-  }
+  userStore.initAuth();
+  // 始终先向后端查询当前 JWT 用户的画像，避免依赖另一用户留下的本地标记。
+  await loadProfileResult();
 });
 
 /**
@@ -318,7 +316,11 @@ async function loadProfileResult() {
     if (res.has_profile && res.profile) {
       profile.value = res.profile;
       // 同步本地缓存
-      uni.setStorageSync('risk_profile', JSON.stringify(res.profile));
+      uni.setStorageSync(riskProfileStorageKey, JSON.stringify(res.profile));
+      userStore.setUserInfo({
+        hasRiskAssessment: true,
+        riskLevel: mapRiskLevelToNumber(res.profile.risk_level),
+      });
       pageState.value = 'result';
       console.log('[RiskAssessment] 画像加载成功:', res.profile.risk_label);
       return;
@@ -333,7 +335,7 @@ async function loadProfileResult() {
   }
 
   // API 失败或无结果时，尝试从本地缓存恢复
-  const cached = uni.getStorageSync('risk_profile');
+  const cached = uni.getStorageSync(riskProfileStorageKey);
   if (cached) {
     try {
       profile.value = JSON.parse(cached);
@@ -414,7 +416,7 @@ async function handleSubmit() {
     });
 
     // 本地持久化画像
-    uni.setStorageSync('risk_profile', JSON.stringify(res.profile));
+    uni.setStorageSync(riskProfileStorageKey, JSON.stringify(res.profile));
 
     console.log('[RiskAssessment] 提交成功，风险等级:', res.profile.risk_label);
 
@@ -471,7 +473,7 @@ function handleBack() {
 function handleRetake() {
   console.log('[RiskAssessment] 点击重新测评');
   // 清除本地缓存
-  uni.removeStorageSync('risk_profile');
+  uni.removeStorageSync(riskProfileStorageKey);
   // 重置状态
   answerMap.value = {};
   currentIndex.value = 0;

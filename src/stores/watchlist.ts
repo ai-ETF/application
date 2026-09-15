@@ -217,6 +217,18 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     }
   }
 
+  /** 用户切换或退出时只清空前端内存，不改动服务端自选数据。 */
+  function resetForAuthChange() {
+    activeTab.value = 'follow';
+    searchKeyword.value = '';
+    followList.value = [];
+    searchResults.value = [];
+    portfolioData.value = null;
+    loading.value = false;
+    searching.value = false;
+    console.log('[WatchlistStore] 已清空用户数据内存');
+  }
+
   return {
     // state
     activeTab,
@@ -239,5 +251,6 @@ export const useWatchlistStore = defineStore('watchlist', () => {
     addToFollow,
     removeFromFollow,
     clearFollow,
+    resetForAuthChange,
   };
 });

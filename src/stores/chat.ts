@@ -269,6 +269,17 @@ export const useChatStore = defineStore('chat', () => {
     // 刷新列表时自动同步
   }
 
+  /** 用户切换或退出时清空内存，避免展示上一位用户的会话。 */
+  function resetForAuthChange() {
+    sessions.value = [];
+    currentChatId.value = '';
+    messages.value = [];
+    loadingSessions.value = false;
+    loadingMessages.value = false;
+    sendingMessage.value = false;
+    console.log('[ChatStore] 已清空用户会话内存');
+  }
+
   return {
     // state
     sessions,
@@ -295,5 +306,6 @@ export const useChatStore = defineStore('chat', () => {
     appendBotToken,
     setBotMessage,
     setCurrentChatId,
+    resetForAuthChange,
   };
 });
