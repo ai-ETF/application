@@ -72,32 +72,41 @@
           <view
             v-for="item in followList"
             :key="item.etfCode"
-            class="etf-item"
-            @tap="handleEtfClick(item)"
-
+            class="swipe-row"
+            @touchstart="handleSwipeStart($event, item.etfCode)"
+            @touchmove="handleSwipeMove($event, item.etfCode)"
+            @touchend="handleSwipeEnd(item.etfCode)"
           >
-            <!-- 标的信息 -->
-            <view class="etf-info">
-              <text class="etf-name">{{ item.etfName }}</text>
-              <view class="etf-meta">
-                <view class="market-tag">{{ item.market }}</view>
-                <text class="etf-code">{{ item.etfCode }}</text>
-              </view>
+            <!-- 左滑后露出的删除操作区，默认完全隐藏在卡片后方 -->
+            <view class="swipe-delete" @tap.stop="handleRemove(item)">
+              <SvgIcon name="trash-2" size="34rpx" color="white" />
+              <text class="swipe-delete-text">删除</text>
             </view>
 
-            <!-- 最新价格 -->
-            <view class="price-section">
-              <text class="etf-price">{{ formatPrice(item.latestPrice) }}</text>
-            </view>
-
-            <!-- 涨跌幅 + 删除按钮 -->
-            <view class="ytd-section">
-              <view class="ytd-badge" :class="item.changePercent >= 0 ? 'profit' : 'loss'">
-                <text class="ytd-text">{{ formatChange(item.changePercent) }}</text>
+            <view
+              class="etf-item"
+              :style="{ transform: `translateX(${swipeOffset(item.etfCode)}px)` }"
+              @tap.stop="handleEtfClick(item)"
+            >
+              <!-- 标的信息 -->
+              <view class="etf-info">
+                <text class="etf-name">{{ item.etfName }}</text>
+                <view class="etf-meta">
+                  <view class="market-tag">{{ item.market }}</view>
+                  <text class="etf-code">{{ item.etfCode }}</text>
+                </view>
               </view>
-              <!-- 删除按钮 -->
-              <view class="remove-btn" @tap.stop="handleRemove(item)">
-                <SvgIcon name="trash-2" size="28rpx" color="tertiary" />
+
+              <!-- 最新价格 -->
+              <view class="price-section">
+                <text class="etf-price">{{ formatPrice(item.latestPrice) }}</text>
+              </view>
+
+              <!-- 涨跌幅 -->
+              <view class="ytd-section">
+                <view class="ytd-badge" :class="item.changePercent >= 0 ? 'profit' : 'loss'">
+                  <text class="ytd-text">{{ formatChange(item.changePercent) }}</text>
+                </view>
               </view>
             </view>
           </view>
@@ -297,6 +306,17 @@ const searchKeyword = ref<string>('');
 /** 搜索框是否聚焦（小程序不支持 :focus-within，使用 JS 状态替代） */
 const searchFocused = ref<boolean>(false);
 
+/** 左滑删除状态：同一时间只打开一条，避免多个操作区同时露出 */
+const swipeCode = ref<string | null>(null);
+const swipeOffsetPx = ref(0);
+const swipeStartX = ref(0);
+const swipeStartY = ref(0);
+const swipeInitialOffsetPx = ref(0);
+const swipeDragging = ref(false);
+const suppressItemTap = ref(false);
+const SWIPE_ACTION_WIDTH_RPX = 176;
+const swipeActionWidthPx = uni.getSystemInfoSync().windowWidth * SWIPE_ACTION_WIDTH_RPX / 750;
+
 /** 持仓列表（模拟数据，待后续接入持仓接口） */
 const positionList = ref<HoldingItem[]>([
   { fundName: '易方达科创50A (510300)', fundCode: '510300', holdingAmount: 50000, holdingShares: 45678.9, dailyProfit: 125, dailyProfitPercent: 0.25, totalProfit: 1250, totalProfitPercent: 2.5, updateDate: '2 月 27 日' },
@@ -402,6 +422,52 @@ function isFollowed(code: string): boolean {
   return watchlistStore.isFollowed(code);
 }
 
+/** 返回指定条目的横向位移，供卡片跟手滑动和回弹动画使用 */
+function swipeOffset(code: string): number {
+  return swipeCode.value === code ? swipeOffsetPx.value : 0;
+}
+
+/** 开始记录水平手势；若另一条已打开，先收起它 */
+function handleSwipeStart(event: TouchEvent, code: string) {
+  const touch = event.touches[0];
+  if (!touch) return;
+  if (swipeCode.value !== code) {
+    swipeCode.value = code;
+    swipeOffsetPx.value = 0;
+  }
+  swipeStartX.value = touch.clientX;
+  swipeStartY.value = touch.clientY;
+  swipeInitialOffsetPx.value = swipeOffsetPx.value;
+  swipeDragging.value = false;
+}
+
+/** 只响应明显的水平滑动，避免影响列表上下滚动 */
+function handleSwipeMove(event: TouchEvent, code: string) {
+  if (swipeCode.value !== code) return;
+  const touch = event.touches[0];
+  if (!touch) return;
+  const deltaX = touch.clientX - swipeStartX.value;
+  const deltaY = touch.clientY - swipeStartY.value;
+  if (!swipeDragging.value && Math.abs(deltaX) < 8) return;
+  if (!swipeDragging.value && Math.abs(deltaY) > Math.abs(deltaX)) return;
+
+  swipeDragging.value = true;
+  // 打开状态允许向右回收，关闭状态只允许向左展开；位移基于本次手势起点计算
+  swipeOffsetPx.value = Math.max(-swipeActionWidthPx, Math.min(0, swipeInitialOffsetPx.value + deltaX));
+}
+
+/** 松手后根据滑动距离决定打开或收起删除区 */
+function handleSwipeEnd(code: string) {
+  if (swipeCode.value !== code) return;
+  if (swipeDragging.value) {
+    suppressItemTap.value = true;
+    swipeOffsetPx.value = swipeOffsetPx.value <= -swipeActionWidthPx * 0.35 ? -swipeActionWidthPx : 0;
+    if (swipeOffsetPx.value === 0) swipeCode.value = null;
+    setTimeout(() => { suppressItemTap.value = false; }, 0);
+  }
+  swipeDragging.value = false;
+}
+
 /**
  * 点击搜索结果中的「添加」
  */
@@ -416,6 +482,12 @@ async function handleAdd(item: SearchResultRaw) {
  * 点击自选项（详情页待 P2 接入）
  */
 function handleEtfClick(item: WatchlistItem) {
+  if (suppressItemTap.value) return;
+  if (swipeOffsetPx.value < 0) {
+    swipeOffsetPx.value = 0;
+    swipeCode.value = null;
+    return;
+  }
   console.log(`[WatchlistPage] 点击 ETF: ${item.etfName} (${item.etfCode})`);
   uni.showToast({ title: `${item.etfName} 详情页开发中`, icon: 'none' });
 }
@@ -599,17 +671,25 @@ function handlePositionClick(fundName: string) {
 .etf-list {
   display: flex;
   flex-direction: column;
-  .etf-item + .etf-item {
+  .swipe-row + .swipe-row {
     margin-top: $spacing-sm;
   }
 }
 
+.swipe-row {
+  position: relative;
+  overflow: hidden;
+  border-radius: $radius-md;
+}
+
 .etf-item {
+  position: relative;
+  z-index: 1;
   @include flex(row, flex-start, center);
   padding: $spacing-md $spacing-base;
   @include card($radius: $radius-md);
   box-shadow: $shadow-sm;
-  transition: all $transition-fast $ease-in-out;
+  transition: transform $transition-fast $ease-in-out;
   /* 列间距：防止价格和涨跌幅紧贴 */
   .etf-info + .price-section,
   .price-section + .ytd-section {
@@ -699,13 +779,23 @@ function handlePositionClick(fundName: string) {
   color: $color-down;
 }
 
-/* ==================== 删除按钮（自选列表） ==================== */
-.remove-btn {
-  @include flex-center;
-  margin-left: $spacing-xs;
-  padding: $spacing-xs;
-  border-radius: $radius-full;
-  transition: all $transition-fast $ease-in-out;
+/* ==================== 左滑删除操作区 ==================== */
+.swipe-delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 176rpx;
+  @include flex(column, center, center);
+  background-color: $color-up;
+  border-radius: $radius-md;
+}
+
+.swipe-delete-text {
+  margin-top: $spacing-xs;
+  color: $color-text-white;
+  font-size: $font-size-xs;
+  font-weight: $font-weight-semibold;
 }
 
 /* ==================== 清空自选按钮 ==================== */
