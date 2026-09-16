@@ -10,7 +10,23 @@ export const AUTH_STORAGE_KEYS = {
 } as const;
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]{3,32}$/;
-const INTERNAL_ACCOUNT_DOMAIN = 'users.ai-etf.xyz';
+
+/**
+ * 内部账号域名。
+ *
+ * 背景：后端（FastAPI + Supabase Auth）只认 email，前端把用户名拼成
+ * `<用户名>@<该域名>` 再提交。因此这个域名必须是 Supabase 能接受的真实域名。
+ *
+ * 之前用的 `users.ai-etf.xyz` 在 DNS 里是 NXDOMAIN（该子域根本不存在），
+ * 被 Supabase 的邮箱校验器拒绝，注册直接 400：
+ *   email_address_invalid: Email address "lpqst@users.ai-etf.xyz" is invalid
+ *
+ * TODO(待验证): 这里临时改用已有 A 记录、但没有 MX 记录的 ai-etf.xyz，
+ * 用于判定 Supabase 是否强制要求域名具备 MX 记录：
+ *   - 若注册成功 → 只要求域名可解析，给 users.ai-etf.xyz 补一条 A 记录即可换回隔离域名
+ *   - 若仍报 email_address_invalid → 必须为该域名配置 MX 记录
+ */
+const INTERNAL_ACCOUNT_DOMAIN = 'ai-etf.xyz';
 
 interface JwtPayload {
   exp?: number;

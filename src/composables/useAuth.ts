@@ -8,6 +8,7 @@ import { useWatchlistStore } from '@/stores/watchlist';
 import type { AuthTokenResponse, AuthUser, RegisterResponse } from '@/types/auth';
 import { accountDisplayName, accountToBackendEmail, validateUsername } from '@/utils/auth';
 
+/** 已知错误原文 → 用户可读提示。只放需要改写语义的，未知错误一律透出原文。 */
 const errorMap: Record<string, string> = {
   'Invalid login credentials': '用户名或密码错误',
   'Email not confirmed': '账号尚未激活，请联系管理员',
@@ -19,8 +20,23 @@ const errorMap: Record<string, string> = {
 
 function translateError(message: string, statusCode?: number): string {
   if (statusCode === 409) return '用户名已存在';
-  if (statusCode === 401 || statusCode === 400) return errorMap[message] || '用户名或密码错误';
-  return errorMap[message] || message || '请求失败，请稍后重试';
+
+  // Supabase 的 email_address_invalid 会把具体地址拼进消息里，无法精确匹配，改用特征判断
+  if (message.startsWith('Email address') && message.includes('is invalid')) {
+    return '该邮箱地址不被服务端接受，请联系管理员';
+  }
+
+  if (errorMap[message]) return errorMap[message];
+
+  // 关键：拿不到已知映射时优先透出后端原文。
+  // 历史 bug：后端返回的中文提示（如"密码长度至少 8 位"）不在 errorMap 中，
+  // 被兜底文案覆盖成"用户名或密码错误"，导致永远看不到真实失败原因。
+  if (message) {
+    console.warn('[useAuth] 未识别的错误响应，已透出原文:', { statusCode, message });
+    return message;
+  }
+
+  return statusCode === 401 || statusCode === 400 ? '用户名或密码错误' : '请求失败，请稍后重试';
 }
 
 function translateNetworkError(error: any): string {
