@@ -36,6 +36,22 @@
         "navigationBarTitleText": "风险画像测评",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/etf-detail/index",
+      "style": { "navigationBarTitleText": "基金详情" }
+    },
+    {
+      "path": "pages/purchase/index",
+      "style": { "navigationBarTitleText": "模拟申购" }
+    },
+    {
+      "path": "pages/redeem/index",
+      "style": { "navigationBarTitleText": "模拟赎回" }
+    },
+    {
+      "path": "pages/trades/index",
+      "style": { "navigationBarTitleText": "交易记录" }
     }
   ],
   "globalStyle": {

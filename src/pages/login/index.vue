@@ -54,7 +54,8 @@
             placeholder-class="input-placeholder"
           />
           <view class="input-icon-wrap eye-btn" @tap="togglePassword">
-            <SvgIcon :name="showPassword ? 'eye-off' : 'eye'" size="36rpx" color="tertiary" />
+            <!-- 图标表示当前状态：密码可见时显示睁眼，密码隐藏时显示闭眼。 -->
+            <SvgIcon :name="showPassword ? 'eye' : 'eye-off'" size="36rpx" color="tertiary" />
           </view>
         </view>
 

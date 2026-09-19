@@ -16,17 +16,31 @@ function handleUnauthorized() {
   expireAuthAndRedirect();
 }
 
+function getHttpErrorMessage(data: unknown, statusCode: number): string {
+  if (typeof data === 'string' && data.trim()) return data;
+  if (data && typeof data === 'object') {
+    const body = data as { detail?: unknown; message?: unknown; error?: unknown };
+    for (const value of [body.detail, body.message, body.error]) {
+      if (typeof value === 'string' && value.trim()) return value;
+    }
+  }
+  return `请求失败（HTTP ${statusCode}）`;
+}
+
 /**
  * 统一请求
  * @description 比 uni.request 多了自动注入 token、401 拦截
  */
 export function request<T = any>(options: UniApp.RequestOptions): Promise<UniApp.RequestSuccessCallbackResult & { data: T }> {
   const session = getAuthSession();
-  if (!isAuthSessionValid(session)) {
+  // 行情接口是公开数据，未登录也允许浏览/搜索；自选、组合交易等个人接口仍必须携带 JWT。
+  const requestUrl = String(options.url || '');
+  const isPublicMarketRequest = /(?:^|\/)api\/market\//.test(requestUrl);
+  if (!isPublicMarketRequest && !isAuthSessionValid(session)) {
     expireAuthAndRedirect();
     return Promise.reject(new Error('登录状态已过期，请重新登录'));
   }
-  const token = session.token;
+  const token = isAuthSessionValid(session) ? session.token : '';
 
   // 合并请求头
   const header: Record<string, string> = {
@@ -47,6 +61,19 @@ export function request<T = any>(options: UniApp.RequestOptions): Promise<UniApp
         if (res.statusCode === 401) {
           handleUnauthorized();
           reject(new Error('未授权，请重新登录'));
+          return;
+        }
+
+        // FastAPI 的业务校验错误通常是 HTTP 400 + { detail }。统一拒绝，
+        // 避免页面把没有 success 字段的错误响应误显示为交易成功。
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          const error = new Error(getHttpErrorMessage(res.data, res.statusCode)) as Error & {
+            statusCode?: number;
+            response?: typeof res;
+          };
+          error.statusCode = res.statusCode;
+          error.response = res;
+          reject(error);
           return;
         }
 

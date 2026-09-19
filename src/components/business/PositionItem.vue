@@ -20,6 +20,7 @@
     <!-- 顶部：基金名称 + 更新日期 -->
     <view class="item-header">
       <text class="fund-name">{{ fundName }}</text>
+      <text class="fund-code">{{ fundCode }}</text>
       <text class="update-date">{{ updateDate }}</text>
     </view>
 
@@ -32,18 +33,11 @@
         <text class="data-label">持仓金额/份额</text>
       </view>
 
-      <!-- 昨日收益 -->
-      <view class="data-section">
-        <text class="data-value" :class="dailyColorClass">{{ formatDailyProfit }}</text>
-        <text class="data-sub" :class="dailyColorClass">{{ formatDailyPercent }}</text>
-        <text class="data-label">昨日收益</text>
-      </view>
-
-      <!-- 持仓收益 -->
+      <!-- 后端返回的持仓盈亏；不把它重复标成“昨日收益”。 -->
       <view class="data-section">
         <text class="data-value" :class="cumulativeColorClass">{{ formatCumulativeProfit }}</text>
         <text class="data-sub" :class="cumulativeColorClass">{{ formatCumulativePercent }}</text>
-        <text class="data-label">持仓收益</text>
+        <text class="data-label">持仓盈亏</text>
       </view>
     </view>
   </view>
@@ -59,6 +53,8 @@ import { formatMoney, formatPercent, getChangeType } from '@/utils/format';
 interface Props {
   /** 基金全称，如 "易方达科创50A (510300)" */
   fundName: string;
+  /** 基金代码 */
+  fundCode: string;
   /** 持仓金额（元） */
   holdingAmount: number;
   /** 持有份额（份） */
@@ -73,6 +69,8 @@ interface Props {
   totalProfitPercent: number;
   /** 数据更新日期 */
   updateDate: string;
+  /** 是否有后端计算的市值/盈亏 */
+  marketValueAvailable?: boolean;
 }
 
 const props = defineProps<Props>();
@@ -81,13 +79,14 @@ const props = defineProps<Props>();
  * 组件事件
  */
 const emit = defineEmits<{
-  (e: 'click', fundName: string): void;
+  (e: 'click', fundCode: string): void;
 }>();
 
 // ==================== 计算属性 ====================
 
 /** 格式化持仓金额：¥ 50,000 */
 const formatHoldingAmount = computed(() => {
+  if (props.marketValueAvailable === false) return '--';
   return `¥ ${formatMoney(props.holdingAmount, 0, false)}`;
 });
 
@@ -109,6 +108,7 @@ const formatDailyPercent = computed(() => {
 
 /** 格式化累计收益金额（带正负号） */
 const formatCumulativeProfit = computed(() => {
+  if (props.marketValueAvailable === false) return '--';
   const sign = props.totalProfit > 0 ? '+' : '';
   return `${sign}${formatMoney(Math.abs(props.totalProfit), 1, false)}`;
 });
@@ -136,7 +136,7 @@ const cumulativeColorClass = computed(() => {
  */
 function handleClick() {
   console.log(`[PositionItem] 点击持仓: ${props.fundName}`);
-  emit('click', props.fundName);
+  emit('click', props.fundCode);
 }
 </script>
 
@@ -166,6 +166,12 @@ function handleClick() {
   font-size: 30rpx;
   font-weight: 700;
   color: #000000;
+}
+
+.fund-code {
+  margin-left: 12rpx;
+  font-size: 22rpx;
+  color: #999999;
 }
 
 .update-date {

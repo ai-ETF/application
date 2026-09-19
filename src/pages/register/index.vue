@@ -50,7 +50,7 @@
             maxlength="72"
           />
           <view class="input-icon-wrap eye-btn" @tap="togglePassword">
-            <SvgIcon :name="showPassword ? 'eye-off' : 'eye'" size="36rpx" color="tertiary" />
+            <SvgIcon :name="showPassword ? 'eye' : 'eye-off'" size="36rpx" color="tertiary" />
           </view>
         </view>
 
@@ -68,7 +68,7 @@
             maxlength="72"
           />
           <view class="input-icon-wrap eye-btn" @tap="toggleConfirmPassword">
-            <SvgIcon :name="showConfirmPassword ? 'eye-off' : 'eye'" size="36rpx" color="tertiary" />
+            <SvgIcon :name="showConfirmPassword ? 'eye' : 'eye-off'" size="36rpx" color="tertiary" />
           </view>
         </view>
 

@@ -99,14 +99,15 @@
 
               <!-- 最新价格 -->
               <view class="price-section">
-                <text class="etf-price">{{ formatPrice(item.latestPrice) }}</text>
+                <text class="etf-price">{{ item.hasQuote ? formatPrice(item.latestPrice) : '--' }}</text>
               </view>
 
               <!-- 涨跌幅 -->
               <view class="ytd-section">
-                <view class="ytd-badge" :class="item.changePercent >= 0 ? 'profit' : 'loss'">
+                <view v-if="item.hasQuote" class="ytd-badge" :class="item.changePercent >= 0 ? 'profit' : 'loss'">
                   <text class="ytd-text">{{ formatChange(item.changePercent) }}</text>
                 </view>
+                <text v-else class="ytd-text muted-value">--</text>
               </view>
             </view>
           </view>
@@ -118,17 +119,19 @@
             v-for="item in searchResults"
             :key="item.code"
             class="etf-item"
+            @tap="goToDetail(item.code)"
           >
             <view class="etf-info">
               <text class="etf-name">{{ item.name }}</text>
-              <view class="etf-meta">
-                <view class="market-tag">{{ marketOf(item.code) }}</view>
-                <text class="etf-code">{{ item.code }}</text>
-              </view>
+                <view class="etf-meta">
+                  <view class="market-tag">{{ channelOf(item) }}</view>
+                  <text class="etf-code">{{ item.code }}</text>
+                  <text v-if="item.tradeable" class="tradeable-label">支持申购</text>
+                </view>
             </view>
 
             <view class="price-section">
-              <text class="etf-price">{{ formatPrice(item.price || 0) }}</text>
+              <text class="etf-price">{{ formatSearchPrice(item) }}</text>
             </view>
 
             <view class="ytd-section">
@@ -136,7 +139,7 @@
               <view
                 v-if="!isFollowed(item.code)"
                 class="add-btn"
-                @tap="handleAdd(item)"
+                @tap.stop="handleAdd(item)"
               >
                 <text class="add-btn-text">+ 添加</text>
               </view>
@@ -148,12 +151,19 @@
           </view>
         </view>
 
+        <view v-if="hasKeyword && watchlistStore.searching" class="search-state">正在搜索基金...</view>
+
+        <view v-if="hasKeyword && watchlistStore.searchError" class="search-state search-error">
+          <text>{{ watchlistStore.searchError }}</text>
+          <text class="retry" @tap="retrySearch">重新搜索</text>
+        </view>
+
         <!-- 空状态 -->
         <view v-if="showEmpty" class="empty-state">
           <view class="empty-icon-box">
             <SvgIcon :name="hasKeyword ? 'search' : 'bookmark'" size="64rpx" color="tertiary" />
           </view>
-          <text class="empty-text">{{ hasKeyword ? '未找到相关 ETF' : '暂无关注的 ETF' }}</text>
+          <text class="empty-text">{{ hasKeyword ? '未找到相关基金' : '暂无关注的 ETF' }}</text>
           <text class="empty-hint">{{ hasKeyword ? '换个关键词试试' : '搜索并添加您感兴趣的 ETF' }}</text>
         </view>
 
@@ -171,29 +181,37 @@
     <!-- ==================== 持仓列表内容 ==================== -->
     <view v-else class="content-area">
       <scroll-view class="list-scroll" scroll-y>
+        <view v-if="positionLoading" class="portfolio-state">正在加载账户和持仓...</view>
+        <view v-else-if="positionError" class="portfolio-state">
+          <text>{{ positionError }}</text>
+          <text v-if="authStore.isAuthenticated" class="retry" @tap="fetchPortfolio">重试</text>
+          <text v-else class="retry" @tap="goToLogin">去登录</text>
+        </view>
+        <template v-else>
         <!-- 资产总览卡片 -->
         <view class="asset-card">
           <view class="card-header">
             <view class="card-title-row">
               <SvgIcon name="briefcase" size="36rpx" color="primary" />
-              <text class="card-title">投资总金额</text>
+              <text class="card-title">账户资产</text>
             </view>
             <view class="header-actions">
-              <view class="action-btn" @tap="handleAssetDiag">
-                <SvgIcon name="thermometer" size="28rpx" color="secondary" />
-                <text class="action-text">资产诊断</text>
-              </view>
-              <view class="action-btn" @tap="handleShare">
-                <SvgIcon name="send" size="28rpx" color="secondary" />
-                <text class="action-text">晒一晒</text>
-              </view>
+            <view class="action-btn" @tap="goTrades">
+              <text class="action-text">交易记录</text>
+            </view>
             </view>
           </view>
 
           <!-- 金额展示 -->
           <view class="amount-section">
-            <text class="amount-value">¥ {{ totalAmount.toLocaleString() }}</text>
+            <text class="amount-value">¥ {{ totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</text>
             <text class="amount-label">总资产</text>
+          </view>
+
+          <view class="asset-grid">
+            <view><text>{{ cashAmount.toFixed(2) }}</text><text>可用现金</text></view>
+            <view><text>{{ frozenAmount.toFixed(2) }}</text><text>冻结资金</text></view>
+            <view><text>{{ positionAmount.toFixed(2) }}</text><text>持仓市值</text></view>
           </view>
 
           <!-- 更新时间行 -->
@@ -202,36 +220,20 @@
             <text class="update-text">数据更新于 {{ updateDate }}</text>
           </view>
 
-          <!-- 收益统计行 -->
+          <!-- 后端只提供总盈亏与总收益率，不把同一字段重复冒充为不同口径。 -->
           <view class="earnings-row">
             <view class="earnings-item">
-              <text class="earnings-value" :class="latestEarnings.amount >= 0 ? 'profit' : 'loss'">
-                {{ latestEarnings.amount >= 0 ? '+' : '' }}{{ latestEarnings.amount.toLocaleString() }}
+              <text class="earnings-value" :class="totalPnl >= 0 ? 'profit' : 'loss'">
+                {{ totalPnl >= 0 ? '+' : '' }}{{ totalPnl.toFixed(2) }}
               </text>
-              <text class="earnings-percent" :class="latestEarnings.percent >= 0 ? 'profit' : 'loss'">
-                {{ latestEarnings.percent >= 0 ? '+' : '' }}{{ latestEarnings.percent }}%
-              </text>
-              <text class="earnings-label">最新收益</text>
+              <text class="earnings-label">总盈亏（元）</text>
             </view>
             <view class="earnings-divider"></view>
             <view class="earnings-item">
-              <text class="earnings-value" :class="holdingEarnings.amount >= 0 ? 'profit' : 'loss'">
-                {{ holdingEarnings.amount >= 0 ? '+' : '' }}{{ holdingEarnings.amount.toLocaleString() }}
+              <text class="earnings-value" :class="totalReturnRate >= 0 ? 'profit' : 'loss'">
+                {{ totalReturnRate >= 0 ? '+' : '' }}{{ totalReturnRate.toFixed(2) }}%
               </text>
-              <text class="earnings-percent" :class="holdingEarnings.percent >= 0 ? 'profit' : 'loss'">
-                {{ holdingEarnings.percent >= 0 ? '+' : '' }}{{ holdingEarnings.percent }}%
-              </text>
-              <text class="earnings-label">持有收益</text>
-            </view>
-            <view class="earnings-divider"></view>
-            <view class="earnings-item">
-              <text class="earnings-value" :class="cumulativeEarnings.amount >= 0 ? 'profit' : 'loss'">
-                {{ cumulativeEarnings.amount >= 0 ? '+' : '' }}{{ cumulativeEarnings.amount.toLocaleString() }}
-              </text>
-              <text class="earnings-percent" :class="cumulativeEarnings.percent >= 0 ? 'profit' : 'loss'">
-                {{ cumulativeEarnings.percent >= 0 ? '+' : '' }}{{ cumulativeEarnings.percent }}%
-              </text>
-              <text class="earnings-label">累计收益</text>
+              <text class="earnings-label">总收益率</text>
             </view>
           </view>
         </view>
@@ -256,6 +258,7 @@
             :total-profit="item.totalProfit"
             :total-profit-percent="item.totalProfitPercent"
             :update-date="item.updateDate"
+            :market-value-available="item.marketValueAvailable"
             @click="handlePositionClick"
           />
         </view>
@@ -270,6 +273,7 @@
         </view>
 
         <view class="scroll-bottom-placeholder"></view>
+        </template>
       </scroll-view>
     </view>
 
@@ -280,11 +284,13 @@
 
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { onShow } from '@dcloudio/uni-app';
+import { onLoad, onShow } from '@dcloudio/uni-app';
 import TabBar from '@/components/common/TabBar.vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import PositionItem from '@/components/business/PositionItem.vue';
 import { useWatchlistStore } from '@/stores/watchlist';
+import { useAuthStore } from '@/stores/auth';
+import { getAccountSummary, getPositions } from '@/api/modules/portfolio';
 import { useSystemInfo } from '@/composables/useSystemInfo';
 
 const { statusBarHeight, windowHeight } = useSystemInfo();
@@ -317,22 +323,23 @@ const suppressItemTap = ref(false);
 const SWIPE_ACTION_WIDTH_RPX = 176;
 const swipeActionWidthPx = uni.getSystemInfoSync().windowWidth * SWIPE_ACTION_WIDTH_RPX / 750;
 
-/** 持仓列表（模拟数据，待后续接入持仓接口） */
-const positionList = ref<HoldingItem[]>([
-  { fundName: '易方达科创50A (510300)', fundCode: '510300', holdingAmount: 50000, holdingShares: 45678.9, dailyProfit: 125, dailyProfitPercent: 0.25, totalProfit: 1250, totalProfitPercent: 2.5, updateDate: '2 月 27 日' },
-  { fundName: '南方有色金属A (160526)', fundCode: '160526', holdingAmount: 30000, holdingShares: 28456.78, dailyProfit: -45, dailyProfitPercent: -0.15, totalProfit: 900, totalProfitPercent: 3.0, updateDate: '2 月 27 日' },
-]);
+/** 当前登录用户的真实持仓列表。 */
+const positionList = ref<HoldingItem[]>([]);
+const positionLoading = ref(false);
+const positionError = ref('');
+const authStore = useAuthStore();
+let portfolioRequestId = 0;
 
 /** 资产总金额 */
-const totalAmount = ref<number>(245000);
+const totalAmount = ref<number>(0);
+const cashAmount = ref(0);
+const frozenAmount = ref(0);
+const positionAmount = ref(0);
 /** 数据更新日期 */
-const updateDate = ref<string>('2 月 27 日 15:30');
-/** 最新收益 */
-const latestEarnings = ref({ amount: 1235, percent: 0.52 });
-/** 持有收益 */
-const holdingEarnings = ref({ amount: 2456, percent: 1.08 });
-/** 累计收益 */
-const cumulativeEarnings = ref({ amount: 5678, percent: 2.34 });
+const updateDate = ref<string>('--');
+/** 后端账户概况返回的总盈亏与总收益率。 */
+const totalPnl = ref(0);
+const totalReturnRate = ref(0);
 
 // ==================== 计算属性 ====================
 
@@ -349,7 +356,7 @@ const hasKeyword = computed(() => searchKeyword.value.trim().length > 0);
 const showEmpty = computed(() => {
   if (hasKeyword.value) {
     // 搜索态：无结果且不在搜索中
-    return searchResults.value.length === 0 && !watchlistStore.searching;
+    return searchResults.value.length === 0 && !watchlistStore.searching && !watchlistStore.searchError;
   }
   return followList.value.length === 0;
 });
@@ -375,13 +382,21 @@ watch(searchKeyword, (kw) => {
 
 // ==================== 生命周期 ====================
 
+onLoad((query) => {
+  if (query?.tab === 'position') activeTab.value = 'position';
+});
+
 /**
  * 页面每次显示时刷新自选列表
  * @description 用 onShow 而非 onLoad，确保从详情页返回能拿到最新自选
  */
 onShow(() => {
+  authStore.restoreSession();
   if (activeTab.value === 'follow') {
-    watchlistStore.fetchFollowList();
+    if (authStore.isAuthenticated) watchlistStore.fetchFollowList();
+    else watchlistStore.resetForAuthChange();
+  } else {
+    fetchPortfolio();
   }
 });
 
@@ -392,8 +407,12 @@ onShow(() => {
  */
 function switchTab(tab: 'follow' | 'position') {
   activeTab.value = tab;
+  authStore.restoreSession();
   if (tab === 'follow') {
-    watchlistStore.fetchFollowList();
+    if (authStore.isAuthenticated) watchlistStore.fetchFollowList();
+    else watchlistStore.resetForAuthChange();
+  } else {
+    fetchPortfolio();
   }
   console.log(`[WatchlistPage] 切换 Tab: ${tab}`);
 }
@@ -415,6 +434,20 @@ function marketOf(code: string): string {
   if (/^[56]/.test(c)) return '沪';
   if (/^[01]/.test(c)) return '深';
   return '';
+}
+
+function channelOf(item: SearchResultRaw): string {
+  if (item.data_source === 'fund_detail' || item.tradeable) return '场外';
+  return marketOf(item.code);
+}
+
+function formatSearchPrice(item: SearchResultRaw): string {
+  const value = item.price != null && item.price > 0 ? item.price : item.nav;
+  return value == null ? '--' : formatPrice(value);
+}
+
+function retrySearch() {
+  if (searchKeyword.value.trim()) void watchlistStore.searchEtf(searchKeyword.value.trim());
 }
 
 /** 是否已关注（搜索结果用） */
@@ -472,7 +505,9 @@ function handleSwipeEnd(code: string) {
  * 点击搜索结果中的「添加」
  */
 async function handleAdd(item: SearchResultRaw) {
-  const ok = await watchlistStore.addToFollow(item.code);
+  authStore.restoreSession();
+  if (!authStore.isAuthenticated) { goToLogin(); return; }
+  const ok = await watchlistStore.addToFollow(item.code, item.name);
   if (ok) {
     uni.showToast({ title: '已添加', icon: 'success' });
   }
@@ -489,7 +524,15 @@ function handleEtfClick(item: WatchlistItem) {
     return;
   }
   console.log(`[WatchlistPage] 点击 ETF: ${item.etfName} (${item.etfCode})`);
-  uni.showToast({ title: `${item.etfName} 详情页开发中`, icon: 'none' });
+  uni.navigateTo({ url: `/pages/etf-detail/index?code=${encodeURIComponent(item.etfCode)}` });
+}
+
+function goToDetail(code: string) {
+  uni.navigateTo({ url: `/pages/etf-detail/index?code=${encodeURIComponent(code)}` });
+}
+
+function goToLogin() {
+  uni.reLaunch({ url: '/pages/login/index' });
 }
 
 /**
@@ -530,18 +573,65 @@ function handleClearAll() {
   });
 }
 
-function handleAssetDiag() {
-  console.log('[WatchlistPage] 点击资产诊断');
-  uni.showToast({ title: '资产诊断功能开发中', icon: 'none' });
+function goTrades() {
+  uni.navigateTo({ url: '/pages/trades/index' });
 }
 
-function handleShare() {
-  console.log('[WatchlistPage] 点击晒一晒');
-  uni.showToast({ title: '分享功能开发中', icon: 'none' });
+function handlePositionClick(fundCode: string) {
+  const item = positionList.value.find(position => position.fundCode === fundCode);
+  if (!item) return;
+  const quantity = item.availableShares ?? item.holdingShares;
+  const price = item.marketPrice ?? '';
+  uni.navigateTo({
+    url: `/pages/redeem/index?code=${encodeURIComponent(item.fundCode)}&name=${encodeURIComponent(item.fundName)}&quantity=${encodeURIComponent(String(quantity))}&price=${encodeURIComponent(String(price))}`,
+  });
 }
 
-function handlePositionClick(fundName: string) {
-  console.log(`[WatchlistPage] 点击持仓: ${fundName}`);
+async function fetchPortfolio() {
+  const requestId = ++portfolioRequestId;
+  authStore.restoreSession();
+  if (!authStore.isAuthenticated) {
+    positionList.value = [];
+    totalAmount.value = cashAmount.value = frozenAmount.value = positionAmount.value = 0;
+    totalPnl.value = totalReturnRate.value = 0;
+    positionError.value = '登录后查看持仓';
+    return;
+  }
+  const userId = authStore.user?.id;
+  positionLoading.value = true; positionError.value = '';
+  try {
+    const [account, positions] = await Promise.all([getAccountSummary(), getPositions()]);
+    if (requestId !== portfolioRequestId || !authStore.isAuthenticated || authStore.user?.id !== userId) return;
+    cashAmount.value = Number(account.cash || 0);
+    frozenAmount.value = Number(account.frozen_cash || 0);
+    positionAmount.value = Number(account.position_value || 0);
+    totalAmount.value = Number(account.total_assets || 0);
+    totalPnl.value = Number(account.total_pnl || 0);
+    totalReturnRate.value = Number(account.total_return_rate || 0) * 100;
+    positionList.value = (positions.items || []).map(item => ({
+      fundName: item.fund_name,
+      fundCode: item.fund_code,
+      holdingAmount: Number(item.market_value || 0),
+      holdingShares: Number(item.quantity || 0),
+      availableShares: Number(item.quantity || 0),
+      marketPrice: item.market_price,
+      marketValueAvailable: item.market_value != null,
+      costPrice: Number(item.cost_price || 0),
+      dailyProfit: Number(item.pnl || 0),
+      dailyProfitPercent: Number(item.pnl_pct || 0),
+      totalProfit: Number(item.pnl || 0),
+      totalProfitPercent: Number(item.pnl_pct || 0),
+      updateDate: item.updated_at || '--',
+    }));
+    updateDate.value = new Date().toLocaleString('zh-CN');
+  } catch (e) {
+    if (requestId !== portfolioRequestId) return;
+    console.error('[WatchlistPage] 加载持仓失败:', e);
+    positionList.value = [];
+    totalAmount.value = cashAmount.value = frozenAmount.value = positionAmount.value = 0;
+    totalPnl.value = totalReturnRate.value = 0;
+    positionError.value = '持仓数据暂时无法获取';
+  } finally { positionLoading.value = false; }
 }
 </script>
 
@@ -735,6 +825,12 @@ function handlePositionClick(fundName: string) {
   color: $color-text-tertiary;
 }
 
+.tradeable-label {
+  margin-left: $spacing-xs;
+  color: $color-brand-primary;
+  font-size: 20rpx;
+}
+
 /* 最新价格：权重 1，右对齐 */
 .price-section {
   flex: 1;
@@ -915,6 +1011,17 @@ function handlePositionClick(fundName: string) {
   color: $color-text-tertiary;
   margin-top: $spacing-xs;
 }
+
+.asset-grid { display:flex; margin-top:$spacing-base; padding-top:$spacing-base; border-top:2rpx solid $color-border-light; }
+.asset-grid view { flex:1; display:flex; flex-direction:column; align-items:center; }
+.asset-grid view + view { border-left:2rpx solid $color-border-light; }
+.asset-grid text:first-child { font-size:$font-size-base; font-weight:$font-weight-semibold; color:$color-text-primary; }
+.asset-grid text:last-child { margin-top:$spacing-xs; font-size:$font-size-xs; color:$color-text-tertiary; }
+.portfolio-state { padding:100rpx 0; text-align:center; color:$color-text-tertiary; }
+.retry { display:block; margin-top:24rpx; color:$color-brand-primary; }
+.search-state { padding: 64rpx 0; text-align: center; color: $color-text-tertiary; font-size: $font-size-sm; }
+.search-error { color: $color-up; }
+.muted-value { color: $color-text-tertiary; }
 
 /* 更新时间行 */
 .update-section {

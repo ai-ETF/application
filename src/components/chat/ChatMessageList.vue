@@ -147,7 +147,10 @@ const totalHeight = computed(() => {
  */
 const startIndex = computed(() => {
   const idx = Math.floor(scrollOffset.value / ITEM_HEIGHT) - BUFFER_COUNT;
-  return Math.max(0, idx);
+  // 切换会话、重新登录或历史消息数量变化后，旧的 scrollTop 可能仍远大于当前列表。
+  // 如果不限制上界，visibleMessages 会被切成空数组，表现为聊天内容消失。
+  const maxStart = Math.max(0, settledMessages.value.length - VISIBLE_COUNT - BUFFER_COUNT * 2);
+  return Math.min(Math.max(0, idx), maxStart);
 });
 
 /**
