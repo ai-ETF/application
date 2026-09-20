@@ -7,8 +7,13 @@
 
 /**
  * 全局盒模型设置
- * @description 使用 border-box 统一盒模型计算方式
+ * @description border-box 统一盒模型，防止 padding 撑开元素导致横向溢出
  */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
 view,
 scroll-view,
 swiper,
@@ -39,9 +44,26 @@ video {
 }
 
 /**
- * 页面根样式
+ * 页面根样式 — 小程序三段式布局的基础
+ *
+ * page 作为全局 flex 容器：
+ * - width: 100% 严格限制页面宽度，防止横向溢出
+ * - height: 100vh 占满屏幕（navigationStyle: custom 后页面即全屏）
+ * - flex column 让子元素填满剩余空间
+ * - overflow: hidden 裁剪任何方向溢出的内容
+ * - padding-bottom 适配 iPhone 底部安全区
  */
 page {
+  width: 100%;
+  max-width: 100%;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+  box-sizing: border-box;
   font-family: $font-family-primary;
   font-size: $font-size-base;
   color: $color-text-primary;

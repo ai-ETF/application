@@ -17,12 +17,48 @@
       "style": {
         "navigationBarTitleText": "设置"
       }
+    },
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "登录"
+      }
+    },
+    {
+      "path": "pages/register/index",
+      "style": {
+        "navigationBarTitleText": "注册"
+      }
+    },
+    {
+      "path": "pages/risk-assessment/index",
+      "style": {
+        "navigationBarTitleText": "风险画像测评",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/etf-detail/index",
+      "style": { "navigationBarTitleText": "基金详情" }
+    },
+    {
+      "path": "pages/purchase/index",
+      "style": { "navigationBarTitleText": "模拟申购" }
+    },
+    {
+      "path": "pages/redeem/index",
+      "style": { "navigationBarTitleText": "模拟赎回" }
+    },
+    {
+      "path": "pages/trades/index",
+      "style": { "navigationBarTitleText": "交易记录" }
     }
   ],
   "globalStyle": {
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "AI-ETF",
     "navigationBarBackgroundColor": "#F8F8F8",
-    "backgroundColor": "#F8F8F8"
+    "backgroundColor": "#F8F8F8",
+    "navigationStyle": "custom"
   }
 }

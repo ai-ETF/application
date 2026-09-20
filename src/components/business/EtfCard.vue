@@ -112,10 +112,11 @@ function handleClick() {
   border-radius: 24rpx;
   padding: 0 24rpx;
   height: 144rpx; // 72pt
-  gap: 24rpx;
-
-  &:active {
-    opacity: 0.9;
+  /* 小程序适配：gap 替换为 margin */
+  .etf-info + .mini-chart,
+  .mini-chart + .price-info,
+  .price-info + .ytd-change {
+    margin-left: 24rpx;
   }
 }
 
@@ -123,8 +124,11 @@ function handleClick() {
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 8rpx;
   width: 240rpx;
+  /* 小程序适配：gap 替换为 margin */
+  .etf-name + .etf-meta {
+    margin-top: 8rpx;
+  }
 }
 
 .etf-name {
@@ -136,7 +140,10 @@ function handleClick() {
 .etf-meta {
   display: flex;
   align-items: center;
-  gap: 8rpx;
+  /* 小程序适配：gap 替换为 margin */
+  .market-tag + .etf-code {
+    margin-left: 8rpx;
+  }
 }
 
 .market-tag {

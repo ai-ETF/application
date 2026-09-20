@@ -26,6 +26,7 @@
  */
 
 import { createSSRApp } from "vue";
+import { createPinia } from "pinia";
 import App from "./App.vue";
 
 /**
@@ -38,6 +39,9 @@ import App from "./App.vue";
 export function createApp() {
   // 创建支持 SSR 的 Vue 应用实例
   const app = createSSRApp(App);
+
+  // 注册 Pinia 状态管理
+  app.use(createPinia());
 
   // 返回应用实例（框架会自动处理挂载逻辑）
   return {

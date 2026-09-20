@@ -3,37 +3,31 @@
  * 聊天输入区域组件
  * ============================================
  * 提供文本输入、语音按钮、加号按钮和发送功能
- *
- * 功能：
- * - 文本输入框（胶囊形状）
- * - 语音按钮
- * - 加号按钮（更多功能）
- * - 发送按钮（有内容时激活）
  */
+
 <template>
   <view class="input-area">
     <!-- 语音按钮 -->
-    <view class="voice-btn" @tap="handleVoiceClick">
-      <SvgIcon name="mic" size="48rpx" color="primary" />
+    <view class="action-btn" @tap="handleVoiceClick">
+      <SvgIcon name="mic" size="40rpx" color="primary" />
     </view>
 
     <!-- 文本输入框 -->
-    <view class="input-field-wrapper">
+    <view class="input-field-wrapper" :class="{ 'input-field-wrapper--focused': isFocused }">
       <input
         v-model="inputText"
         class="text-input"
         type="text"
         :placeholder="placeholder"
         placeholder-class="input-placeholder"
-        :adjust-position="true"
         confirm-type="send"
         @confirm="handleSend"
-        @focus="onFocus"
-        @blur="onBlur"
+        @focus="isFocused = true"
+        @blur="isFocused = false"
       />
       <!-- 加号按钮 -->
       <view class="plus-btn" @tap="handlePlusClick">
-        <SvgIcon name="plus" size="32rpx" color="tertiary" />
+        <SvgIcon name="plus" size="28rpx" color="tertiary" />
       </view>
     </view>
 
@@ -43,7 +37,7 @@
       :class="{ 'send-btn--active': canSend }"
       @tap="handleSend"
     >
-      <SvgIcon name="send" size="44rpx" color="white" />
+      <SvgIcon name="send" size="40rpx" :color="canSend ? 'white' : 'tertiary'" />
     </view>
   </view>
 </template>
@@ -52,13 +46,8 @@
 import { ref, computed } from 'vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 
-/**
- * 组件属性
- */
 interface Props {
-  /** 输入框占位文本 */
   placeholder?: string;
-  /** 是否禁用发送（如正在加载） */
   disabled?: boolean;
 }
 
@@ -67,92 +56,78 @@ const props = withDefaults(defineProps<Props>(), {
   disabled: false,
 });
 
-/**
- * 组件事件
- */
 const emit = defineEmits<{
   (e: 'send', content: string): void;
   (e: 'voice'): void;
   (e: 'plus'): void;
-  (e: 'focus'): void;
-  (e: 'blur'): void;
 }>();
 
-/** 输入框文本 */
 const inputText = ref<string>('');
+const isFocused = ref<boolean>(false);
 
-/** 是否可以发送 */
 const canSend = computed(() => {
   return inputText.value.trim().length > 0 && !props.disabled;
 });
 
-/** 发送消息 */
 function handleSend() {
   const content = inputText.value.trim();
   if (!content || props.disabled) return;
-
   emit('send', content);
   inputText.value = '';
 }
 
-/** 语音按钮点击 */
-function handleVoiceClick() {
-  emit('voice');
-}
-
-/** 加号按钮点击 */
-function handlePlusClick() {
-  emit('plus');
-}
-
-/** 输入框获得焦点 */
-function onFocus() {
-  emit('focus');
-}
-
-/** 输入框失去焦点 */
-function onBlur() {
-  emit('blur');
-}
+function handleVoiceClick() { emit('voice'); }
+function handlePlusClick() { emit('plus'); }
 </script>
 
 <style lang="scss" scoped>
 .input-area {
-  display: flex;
-  align-items: center;
-  gap: $spacing-md;
-  padding: $spacing-base;
+  flex-shrink: 0;
+  @include flex(row, center, center);
+  padding: $spacing-sm $spacing-base $spacing-base;
   background-color: $color-bg-primary;
+  position: relative;
+
+  /* 顶部阴影分隔线（小程序不支持 ::before 伪元素，已移除渐变分隔线） */
 }
 
-.voice-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: $voice-btn-size;
-  height: $voice-btn-size;
+.action-btn + .input-field-wrapper {
+  margin-left: $spacing-md;
+}
 
-  &:active {
-    opacity: 0.7;
-    transform: scale(0.95);
-  }
+.input-field-wrapper + .send-btn {
+  margin-left: $spacing-md;
+}
+
+/* 语音/加号按钮 */
+.action-btn {
+  @include flex-center;
+  width: 80rpx;
+  height: 80rpx;
+  transition: all $transition-fast $ease-in-out;
 }
 
 .input-field-wrapper {
   flex: 1;
-  display: flex;
-  align-items: center;
+  @include flex(row, flex-start, center);
   height: $input-height;
   padding: 0 $spacing-base;
-  background-color: $color-bg-secondary;
+  background-color: $color-bg-card;
   border-radius: $input-radius;
   border: 2rpx solid $color-border;
+  box-shadow: $shadow-inner;
+  transition: all $transition-fast $ease-in-out;
+}
+
+.input-field-wrapper--focused {
+  border-color: $color-brand-primary;
+  box-shadow: 0 0 0 4rpx rgba($color-brand-primary, 0.1), $shadow-inner;
 }
 
 .text-input {
   flex: 1;
   height: 100%;
-  font-size: $font-size-lg;
+  font-size: $font-size-base;
   color: $color-text-primary;
   background-color: transparent;
 }
@@ -162,34 +137,22 @@ function onBlur() {
 }
 
 .plus-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: $plus-btn-size;
-  height: $plus-btn-size;
-
-  &:active {
-    opacity: 0.7;
-  }
+  @include flex-center;
+  width: 56rpx;
+  height: 56rpx;
 }
 
 .send-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: $btn-height-lg;
-  height: $btn-height-lg;
+  @include flex-center;
+  width: 112rpx;
+  height: 112rpx;
   background-color: $color-border;
-  border-radius: $send-btn-radius;
-  transition: all $transition-fast ease;
-
-  &:active {
-    opacity: 0.8;
-    transform: scale(0.95);
-  }
+  border-radius: 56rpx;
+  transition: all $transition-fast $ease-in-out;
 }
 
 .send-btn--active {
-  background-color: $color-brand-primary;
+  background: linear-gradient(135deg, $color-brand-primary, $color-brand-hover);
+  box-shadow: 0 4rpx 12rpx rgba($color-brand-primary, 0.3);
 }
 </style>

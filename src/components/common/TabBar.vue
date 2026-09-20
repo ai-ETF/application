@@ -137,30 +137,32 @@ function handleTabClick(tab: ActiveTab) {
 <style lang="scss" scoped>
 /* ==================== 导航栏容器 ==================== */
 .tab-bar {
-  display: flex;
-  justify-content: space-around;
+  flex-shrink: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   width: 100%;
-  height: 200rpx;
+  max-width: 100%;
+  height: 120rpx;
   background-color: $color-bg-primary;
-  /* 适配 iPhone X 等有底部安全区域的设备 */
-  padding-bottom: env(safe-area-inset-bottom);
+  box-sizing: border-box;
 }
 
 /* ==================== Tab 项 ==================== */
 .tab-item {
+  min-width: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: $spacing-sm;
-  padding: $spacing-sm $spacing-base;
+  justify-content: center;
   cursor: pointer;
   transition: all $transition-fast ease;
+}
 
-  &:active {
-    opacity: 0.7;
-    transform: scale(0.95);
-  }
+/* 小程序不支持 gap，使用相邻选择器实现图标与文字的间距 */
+.tab-icon + .tab-label,
+.tab-icon-bg + .tab-label {
+  margin-top: $spacing-sm;
 }
 
 /* Tab 标签文字 */
@@ -180,22 +182,19 @@ function handleTabClick(tab: ActiveTab) {
 }
 
 /* ==================== Tab 图标 ==================== */
-/* 普通图标（无背景） */
-.tab-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 48rpx;
-  height: 48rpx;
-}
-
-/* 带圆形背景的图标 */
+/* 所有图标统一固定尺寸容器，保证四个 Tab 图标中心对齐 */
+.tab-icon,
 .tab-icon-bg {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 80rpx;
   height: 80rpx;
+  flex-shrink: 0;
+}
+
+/* 带圆形背景的图标 */
+.tab-icon-bg {
   border-radius: $radius-circle;
   background-color: transparent;
 }

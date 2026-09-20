@@ -1,84 +1,89 @@
-<!--
-  ============================================
-  应用根组件
-  ============================================
-
-  这是 Vue 应用的根组件，负责：
-  1. 应用生命周期管理（启动、显示、隐藏）
-  2. 导入全局样式
-
-  为什么没有 <template>？
-  - uni-app 的 App.vue 不需要渲染内容
-  - 页面内容由 pages.json 中配置的页面组件渲染
-  - App.vue 只负责全局逻辑和样式
-
-  关于路由（重要）：
-  - uni-app 没有 <router-view> 或 <view-router>
-  - 路由系统由框架内置，不需要手动配置
-  - 路由配置在 pages.json 中：
-    {
-      "pages": [
-        { "path": "pages/index/index" },  // 首页
-        { "path": "pages/watchlist/index" }, // 自选页
-        { "path": "pages/settings/index" }   // 设置页
-      ]
-    }
-  - 框架会自动根据 pages.json：
-    1. 注册路由
-    2. 创建页面容器
-    3. 处理页面切换
-
-  页面切换方式：
-  - uni.navigateTo({ url: '/pages/settings/index' })  // 保留当前页
-  - uni.redirectTo({ url: '/pages/index/index' })     // 关闭当前页
-  - uni.switchTab({ url: '/pages/index/index' })      // Tab 切换
-
-  与传统 Vue Router 的区别：
-  ┌─────────────────┬─────────────────────┬─────────────────────┐
-  │                 │ Vue Router          │ uni-app             │
-  ├─────────────────┼─────────────────────┼─────────────────────┤
-  │ 路由配置        │ router/index.ts     │ pages.json          │
-  │ 路由视图        │ <router-view>       │ 框架内置            │
-  │ 页面切换        │ router.push()       │ uni.navigateTo()    │
-  │ 导航栏          │ 自定义组件          │ 原生导航栏          │
-  └─────────────────┴─────────────────────┴─────────────────────┘
--->
+<template>
+  <view />
+</template>
 
 <script setup lang="ts">
-import { onLaunch, onShow, onHide } from "@dcloudio/uni-app";
+import { onHide, onLaunch, onShow } from '@dcloudio/uni-app';
+import { useAuthStore } from '@/stores/auth';
+import { clearAuthSession, isAuthSessionValid } from '@/utils/auth';
 import './styles/index.scss';
 
-/**
- * 应用生命周期：启动
- * @description 应用首次启动时触发（全局只触发一次）
- * 用途：初始化全局数据、检查登录状态、请求必要配置
- */
+const WHITE_LIST = ['/pages/login/index', '/pages/register/index'];
+let initialized = false;
+
+function normalizePath(url: string): string {
+  return url.split('?')[0];
+}
+
+function currentPath(): string {
+  const pages = getCurrentPages();
+  const currentPage = pages.length ? pages[pages.length - 1] : null;
+  return currentPage?.route ? `/${currentPage.route}` : '';
+}
+
+function redirectToLogin() {
+  const path = currentPath();
+  if (WHITE_LIST.includes(path)) return;
+  console.log('[App] 登录态无效，跳转登录页');
+  uni.reLaunch({ url: '/pages/login/index' });
+}
+
+/** 统一包装导航 API，防止未登录用户直接进入业务页。 */
+function setupAuthGuard() {
+  const originals = {
+    navigateTo: uni.navigateTo.bind(uni),
+    redirectTo: uni.redirectTo.bind(uni),
+    reLaunch: uni.reLaunch.bind(uni),
+    switchTab: uni.switchTab.bind(uni),
+  };
+
+  const guard = (fn: Function) => (options: { url: string; [key: string]: any }) => {
+    const isWhite = WHITE_LIST.includes(normalizePath(options.url));
+    if (!isWhite && !isAuthSessionValid()) {
+      clearAuthSession();
+      console.log('[AuthGuard] 拦截未授权页面:', options.url);
+      originals.reLaunch({ url: '/pages/login/index' });
+      return;
+    }
+    fn(options);
+  };
+
+  uni.navigateTo = guard(originals.navigateTo) as typeof uni.navigateTo;
+  uni.redirectTo = guard(originals.redirectTo) as typeof uni.redirectTo;
+  uni.reLaunch = guard(originals.reLaunch) as typeof uni.reLaunch;
+  uni.switchTab = guard(originals.switchTab) as typeof uni.switchTab;
+}
+
 onLaunch(() => {
-  console.log("[App] 应用启动");
+  console.log('[App] 应用启动');
+  setupAuthGuard();
+  const restored = useAuthStore().restoreSession();
+  console.log('[App] 登录态恢复:', restored ? '有效' : '无效');
+  if (!restored) redirectToLogin();
+  initialized = true;
 });
 
-/**
- * 应用生命周期：显示
- * @description 应用从后台进入前台时触发
- * 用途：刷新数据、恢复状态
- */
 onShow(() => {
-  console.log("[App] 应用显示");
+  if (!initialized) return;
+  const valid = isAuthSessionValid();
+  const path = currentPath();
+  if (!valid) {
+    clearAuthSession();
+    redirectToLogin();
+    return;
+  }
+
+  // 有效登录态重新打开小程序时，不停留在登录或注册页。
+  if (WHITE_LIST.includes(path)) {
+    uni.reLaunch({ url: '/pages/index/index' });
+  }
 });
 
-/**
- * 应用生命周期：隐藏
- * @description 应用从前台进入后台时触发
- * 用途：保存临时数据、暂停任务
- */
 onHide(() => {
-  console.log("[App] 应用隐藏");
+  console.log('[App] 应用隐藏');
 });
 </script>
 
 <style>
-/*
- * 全局样式统一在 styles/index.scss 中管理
- * App.vue 无需额外定义样式
- */
+/* 全局样式由 styles/index.scss 管理。 */
 </style>
