@@ -6,7 +6,7 @@
  */
 
 import { get } from '@/utils/request';
-import type { ApiResult, SpotQuoteRaw, SearchResultRaw, ListResponse } from '@/api/types';
+import type { ApiResult, EtfDetailRaw, KlineResponseRaw, SpotQuoteRaw, SearchResultRaw, ListResponse } from '@/api/types';
 
 /**
  * 按代码查询实时行情
@@ -27,5 +27,17 @@ export function searchEtf(keyword: string, topN = 10) {
   console.log('[API] 搜索 ETF:', keyword, 'top_n=', topN);
   return get<ListResponse<SearchResultRaw>>('/api/market/search', {
     data: { keyword, top_n: topN },
+  }).then(res => res.data);
+}
+
+/** 查询单只基金完整详情（含实时行情和历史净值）。 */
+export function getEtfDetail(code: string) {
+  return get<EtfDetailRaw>(`/api/market/detail/${encodeURIComponent(code)}`).then(res => res.data);
+}
+
+/** 查询基金 K 线。 */
+export function getEtfKline(code: string, period = 'daily', limit = 60) {
+  return get<KlineResponseRaw>(`/api/market/kline/${encodeURIComponent(code)}`, {
+    data: { period, limit },
   }).then(res => res.data);
 }

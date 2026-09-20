@@ -21,7 +21,7 @@
 
       <!-- 表单区域 -->
       <view class="form-section">
-        <!-- 用户名（可选） -->
+        <!-- 用户名 -->
         <view class="input-group">
           <view class="input-icon-wrap">
             <SvgIcon name="user" size="36rpx" color="tertiary" />
@@ -30,22 +30,9 @@
             v-model="username"
             class="input-field"
             type="text"
-            placeholder="用户名（可选）"
+            placeholder="用户名"
             placeholder-class="input-placeholder"
-          />
-        </view>
-
-        <!-- 邮箱输入框 -->
-        <view class="input-group">
-          <view class="input-icon-wrap">
-            <SvgIcon name="mail" size="36rpx" color="tertiary" />
-          </view>
-          <input
-            v-model="email"
-            class="input-field"
-            type="text"
-            placeholder="邮箱"
-            placeholder-class="input-placeholder"
+            maxlength="32"
           />
         </view>
 
@@ -60,11 +47,32 @@
             :password="!showPassword"
             placeholder="密码"
             placeholder-class="input-placeholder"
+            maxlength="72"
           />
           <view class="input-icon-wrap eye-btn" @tap="togglePassword">
-            <SvgIcon :name="showPassword ? 'eye-off' : 'eye'" size="36rpx" color="tertiary" />
+            <SvgIcon :name="showPassword ? 'eye' : 'eye-off'" size="36rpx" color="tertiary" />
           </view>
         </view>
+
+        <!-- 确认密码 -->
+        <view class="input-group">
+          <view class="input-icon-wrap">
+            <SvgIcon name="lock" size="36rpx" color="tertiary" />
+          </view>
+          <input
+            v-model="confirmPassword"
+            class="input-field"
+            :password="!showConfirmPassword"
+            placeholder="确认密码"
+            placeholder-class="input-placeholder"
+            maxlength="72"
+          />
+          <view class="input-icon-wrap eye-btn" @tap="toggleConfirmPassword">
+            <SvgIcon :name="showConfirmPassword ? 'eye' : 'eye-off'" size="36rpx" color="tertiary" />
+          </view>
+        </view>
+
+        <text class="password-hint">密码至少 8 位，建议同时包含字母和数字</text>
 
         <!-- 错误提示区 -->
         <view v-if="errorMessage" class="error-box">
@@ -104,16 +112,19 @@ const { windowHeight, statusBarHeight } = useSystemInfo();
 // ==================== 状态 ====================
 
 const username = ref<string>('');
-const email = ref<string>('');
 const password = ref<string>('');
+const confirmPassword = ref<string>('');
 const showPassword = ref<boolean>(false);
+const showConfirmPassword = ref<boolean>(false);
 
 const { register, loading: isLoading, errorMessage } = useAuth();
 
 // ==================== 计算属性 ====================
 
 const canSubmit = computed(() => {
-  return email.value.trim().length > 0 && password.value.trim().length > 0;
+  return username.value.trim().length > 0
+    && password.value.length > 0
+    && confirmPassword.value.length > 0;
 });
 
 // ==================== 方法 ====================
@@ -121,20 +132,36 @@ const canSubmit = computed(() => {
 async function handleRegister() {
   if (!canSubmit.value || isLoading.value) return;
 
-  console.log('[RegisterPage] 开始注册流程', { email: email.value });
+  if (password.value !== confirmPassword.value) {
+    errorMessage.value = '两次输入的密码不一致';
+    return;
+  }
 
-  const { error } = await register(email.value.trim(), password.value, username.value.trim() || undefined);
+  console.log('[RegisterPage] 开始注册流程', { username: username.value });
+
+  const result = await register(username.value.trim(), password.value);
+  const { error } = result;
 
   if (error) {
     console.error('[RegisterPage] 注册失败:', error);
   } else {
-    console.log('[RegisterPage] 注册成功，跳转首页');
-    uni.reLaunch({ url: '/pages/index/index' });
+    uni.showToast({ title: '注册成功', icon: 'success' });
+    if ('autoLoggedIn' in result && result.autoLoggedIn) {
+      console.log('[RegisterPage] 注册成功并自动登录');
+      setTimeout(() => uni.reLaunch({ url: '/pages/index/index' }), 500);
+    } else {
+      console.log('[RegisterPage] 注册成功，返回登录页');
+      setTimeout(() => uni.reLaunch({ url: '/pages/login/index' }), 500);
+    }
   }
 }
 
 function togglePassword() {
   showPassword.value = !showPassword.value;
+}
+
+function toggleConfirmPassword() {
+  showConfirmPassword.value = !showConfirmPassword.value;
 }
 
 function handleGoLogin() {
@@ -231,6 +258,18 @@ function handleGoLogin() {
 
 .input-placeholder {
   color: $color-text-tertiary;
+}
+
+.password-hint {
+  margin-top: $spacing-sm;
+  padding-left: $spacing-base;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.password-hint + .error-box,
+.password-hint + .submit-btn {
+  margin-top: $spacing-xl;
 }
 
 /* ==================== 错误提示区 ==================== */

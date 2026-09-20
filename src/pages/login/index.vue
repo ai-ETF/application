@@ -24,19 +24,22 @@
 
       <!-- 表单区域 -->
       <view class="form-section">
-        <!-- 邮箱输入框 -->
+        <!-- 用户名输入框；仍兼容旧账号使用邮箱登录 -->
         <view class="input-group">
           <view class="input-icon-wrap">
-            <SvgIcon name="mail" size="36rpx" color="tertiary" />
+            <SvgIcon name="user" size="36rpx" color="tertiary" />
           </view>
           <input
-            v-model="email"
+            v-model="account"
             class="input-field"
             type="text"
-            placeholder="邮箱"
+            placeholder="用户名"
             placeholder-class="input-placeholder"
+            maxlength="128"
           />
         </view>
+
+        <text class="account-hint">旧账号可继续输入邮箱登录</text>
 
         <!-- 密码输入框 -->
         <view class="input-group">
@@ -51,7 +54,8 @@
             placeholder-class="input-placeholder"
           />
           <view class="input-icon-wrap eye-btn" @tap="togglePassword">
-            <SvgIcon :name="showPassword ? 'eye-off' : 'eye'" size="36rpx" color="tertiary" />
+            <!-- 图标表示当前状态：密码可见时显示睁眼，密码隐藏时显示闭眼。 -->
+            <SvgIcon :name="showPassword ? 'eye' : 'eye-off'" size="36rpx" color="tertiary" />
           </view>
         </view>
 
@@ -67,7 +71,7 @@
           :class="{ 'submit-btn--disabled': !canSubmit || isLoading }"
           @tap="handleLogin"
         >
-          <text v-if="!isLoading" class="submit-text">继续</text>
+          <text v-if="!isLoading" class="submit-text">登录</text>
           <text v-else class="submit-text">登录中...</text>
         </view>
       </view>
@@ -93,7 +97,7 @@ const { windowHeight, statusBarHeight } = useSystemInfo();
 
 // ==================== 状态 ====================
 
-const email = ref<string>('');
+const account = ref<string>('');
 const password = ref<string>('');
 const showPassword = ref<boolean>(false);
 
@@ -103,7 +107,7 @@ const { login, loading: isLoading, errorMessage } = useAuth();
 
 /** 是否可提交 */
 const canSubmit = computed(() => {
-  return email.value.trim().length > 0 && password.value.trim().length > 0;
+  return account.value.trim().length > 0 && password.value.length > 0;
 });
 
 // ==================== 方法 ====================
@@ -114,9 +118,9 @@ const canSubmit = computed(() => {
 async function handleLogin() {
   if (!canSubmit.value || isLoading.value) return;
 
-  console.log('[LoginPage] 开始登录流程', { email: email.value });
+  console.log('[LoginPage] 开始登录流程', { account: account.value });
 
-  const { error } = await login(email.value.trim(), password.value);
+  const { error } = await login(account.value.trim(), password.value);
 
   if (error) {
     console.error('[LoginPage] 登录失败:', error);
@@ -258,6 +262,17 @@ function handleGoRegister() {
 
 .input-placeholder {
   color: $color-text-tertiary;
+}
+
+.account-hint {
+  margin-top: $spacing-sm;
+  padding-left: $spacing-base;
+  font-size: $font-size-sm;
+  color: $color-text-tertiary;
+}
+
+.account-hint + .input-group {
+  margin-top: $spacing-base;
 }
 
 /* ==================== 错误提示区 ==================== */

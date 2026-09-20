@@ -27,12 +27,12 @@
           <view class="user-info-section">
             <!-- 头像：圆形，浅琥珀色背景，昵称首字 -->
             <view class="avatar">
-              <text class="avatar-text">{{ userStore.userInfo.nickname.charAt(0) }}</text>
+              <text class="avatar-text">{{ displayName.charAt(0) }}</text>
             </view>
             <!-- 用户名 + 欢迎文案 -->
             <view class="user-text-group">
-              <text class="username">{{ userStore.userInfo.nickname }}</text>
-              <text class="welcome-text">欢迎回来</text>
+              <text class="username">{{ displayName }}</text>
+              <text class="welcome-text">{{ authStore.isAuthenticated ? '已安全登录 · 1 小时有效' : '请先登录查看个人数据' }}</text>
             </view>
           </view>
           <!-- 右侧：操作图标 -->
@@ -57,9 +57,20 @@
             <SvgIcon name="briefcase" size="36rpx" color="primary" />
             <text class="card-title">我的持仓</text>
           </view>
-          <view class="amount-section">
+          <view v-if="holdingsState === 'success' || holdingsState === 'empty'" class="amount-section">
             <text class="amount-value">{{ holdingsAmount }}</text>
             <text class="amount-unit">元</text>
+          </view>
+          <view v-else-if="holdingsState === 'loading'" class="holdings-status">
+            <text class="holdings-status-text">正在加载...</text>
+          </view>
+          <view v-else-if="holdingsState === 'unauthenticated'" class="holdings-status holdings-status--unauthenticated">
+            <text class="holdings-status-text">登录后查看持仓</text>
+            <text class="holdings-action" @tap.stop="goToLogin">去登录</text>
+          </view>
+          <view v-else class="holdings-status">
+            <text class="holdings-status-text">持仓数据暂时无法获取</text>
+            <text class="holdings-action" @tap.stop="loadAccountSummary">重试</text>
           </view>
         </view>
 
@@ -112,6 +123,16 @@
             </view>
           </view>
         </view>
+
+        <!-- 退出登录：先通知后端撤销会话，再清除本地认证信息 -->
+        <view
+          class="logout-card"
+          :class="{ 'logout-card--disabled': authLoading }"
+          @tap="handleLogout"
+        >
+          <SvgIcon name="log-out" size="36rpx" color="brand" />
+          <text class="logout-text">{{ authLoading ? '正在退出...' : '退出登录' }}</text>
+        </view>
       </view>
 
       <!-- 底部占位，防止内容被 TabBar 遮挡 -->
@@ -125,9 +146,13 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
+import { onShow } from '@dcloudio/uni-app';
 import TabBar from '@/components/common/TabBar.vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
 import { useUserStore } from '@/stores/user';
+import { useAuthStore } from '@/stores/auth';
+import { useAuth } from '@/composables/useAuth';
+import { getAccountSummary } from '@/api';
 import { useSystemInfo } from '@/composables/useSystemInfo';
 
 /** 窗口高度 + 状态栏高度，用于页面全屏适配 */
@@ -137,11 +162,17 @@ const { windowHeight, statusBarHeight } = useSystemInfo();
 
 /** 用户状态 Store */
 const userStore = useUserStore();
+const authStore = useAuthStore();
+const { logout, loading: authLoading } = useAuth();
 
 // ==================== 状态定义 ====================
 
-/** 持仓金额（模拟数据，实际从 API 获取） */
-const holdingsAmountValue = ref<number>(186500);
+/** 当前 JWT 用户的真实持仓市值。 */
+const holdingsAmountValue = ref<number>(0);
+
+type HoldingsState = 'loading' | 'success' | 'empty' | 'unauthenticated' | 'error';
+const holdingsState = ref<HoldingsState>('unauthenticated');
+let accountRequestId = 0;
 
 /** 格式化后的持仓金额 */
 const holdingsAmount = computed(() => {
@@ -151,6 +182,9 @@ const holdingsAmount = computed(() => {
   });
 });
 
+/** 以认证身份为准展示当前用户，兼容旧登录态。 */
+const displayName = computed(() => authStore.user?.displayName || userStore.userInfo.nickname || '用户');
+
 // ==================== 生命周期 ====================
 
 /**
@@ -158,12 +192,93 @@ const holdingsAmount = computed(() => {
  * @description 恢复用户登录状态
  */
 function init() {
+  authStore.restoreSession();
   userStore.initAuth();
+  holdingsState.value = authStore.isAuthenticated ? 'loading' : 'unauthenticated';
   console.log('[SettingsPage] 页面初始化，用户:', userStore.userInfo.nickname);
+}
+
+async function handleLogout() {
+  if (authLoading.value) return;
+  const result = await uni.showModal({
+    title: '退出登录',
+    content: '退出后需要重新输入用户名和密码，是否继续？',
+    confirmText: '退出',
+  });
+  if (!result.confirm) return;
+
+  // 立即撤销页面上的旧请求和金额，避免退出等待后端响应时继续显示 A 用户资产。
+  accountRequestId += 1;
+  holdingsAmountValue.value = 0;
+  holdingsState.value = 'unauthenticated';
+  await logout();
+  uni.reLaunch({ url: '/pages/login/index' });
 }
 
 // 页面创建时初始化
 init();
+
+async function loadAccountSummary() {
+  const requestId = ++accountRequestId;
+  holdingsAmountValue.value = 0;
+
+  // 未登录时不调用任何需要 JWT 的个人资产接口，也不保留上一个用户的金额。
+  authStore.restoreSession();
+  if (!authStore.isAuthenticated || !authStore.user?.id) {
+    // 页面从后台恢复、或本地会话刚过期时，同步清理旧的用户展示状态。
+    userStore.initAuth();
+    holdingsState.value = 'unauthenticated';
+    return;
+  }
+
+  const userId = authStore.user.id;
+  holdingsState.value = 'loading';
+  try {
+    const account = await getAccountSummary();
+
+    // 用户在请求完成前退出或切换账号时，丢弃旧请求结果，避免金额闪回/串号。
+    if (
+      requestId !== accountRequestId
+      || !authStore.isAuthenticated
+      || authStore.user?.id !== userId
+    ) return;
+
+    if (!account) {
+      holdingsState.value = 'empty';
+      holdingsAmountValue.value = 0;
+      return;
+    }
+
+    const positionValue = Number(account.position_value);
+    if (Number.isFinite(positionValue)) {
+      holdingsAmountValue.value = positionValue;
+      holdingsState.value = account.position_count === 0 ? 'empty' : 'success';
+      console.log('[SettingsPage] 当前用户持仓加载成功:', account.position_count);
+      return;
+    }
+
+    throw new Error('账户接口未返回有效的 position_value');
+  } catch (error) {
+    if (requestId !== accountRequestId) return;
+    // 统一请求层在 401 时已经清除 JWT；此时回到未登录状态，不能把它显示成普通错误并保留旧用户上下文。
+    authStore.restoreSession();
+    if (!authStore.isAuthenticated) {
+      userStore.initAuth();
+      holdingsAmountValue.value = 0;
+      holdingsState.value = 'unauthenticated';
+      return;
+    }
+    console.error('[SettingsPage] 加载当前用户持仓失败:', error);
+    holdingsAmountValue.value = 0;
+    holdingsState.value = 'error';
+  }
+}
+
+function goToLogin() {
+  uni.reLaunch({ url: '/pages/login/index' });
+}
+
+onShow(loadAccountSummary);
 
 // ==================== 事件处理函数 ====================
 
@@ -316,6 +431,10 @@ function handleFeedbackClick() {
   .holdings-card + .menu-group {
     margin-top: $spacing-md;
   }
+
+  .menu-group + .logout-card {
+    margin-top: $spacing-md;
+  }
 }
 
 /* ==================== 持仓卡片 ==================== */
@@ -360,6 +479,28 @@ function handleFeedbackClick() {
 .amount-unit {
   font-size: $font-size-xl;
   color: $color-text-tertiary;
+}
+
+.holdings-status {
+  @include flex(row, space-between, center);
+  min-height: 72rpx;
+  margin-top: $spacing-sm;
+}
+
+.holdings-status--unauthenticated {
+  justify-content: flex-start;
+}
+
+.holdings-status-text {
+  font-size: $font-size-base;
+  color: $color-text-tertiary;
+}
+
+.holdings-action {
+  margin-left: $spacing-base;
+  font-size: $font-size-base;
+  color: $color-brand-primary;
+  font-weight: $font-weight-medium;
 }
 
 /* ==================== 菜单组 ==================== */
@@ -423,6 +564,27 @@ function handleFeedbackClick() {
   height: 2rpx;
   background-color: $color-border-light;
   margin: 0 $spacing-base;
+}
+
+.logout-card {
+  @include card;
+  @include flex-center;
+  padding: $spacing-base;
+  box-shadow: $shadow-sm;
+
+  .svg-icon + .logout-text {
+    margin-left: $spacing-sm;
+  }
+}
+
+.logout-card--disabled {
+  opacity: 0.55;
+}
+
+.logout-text {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-medium;
+  color: $color-brand-primary;
 }
 
 /* ==================== 底部占位 ==================== */

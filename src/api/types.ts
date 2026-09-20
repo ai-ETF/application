@@ -77,6 +77,61 @@ interface SpotQuoteRaw {
   source?: string;
 }
 
+/** ETF 详细信息（/api/market/detail/:code）。 */
+interface EtfDetailRaw {
+  code: string;
+  full_name?: string | null;
+  short_name?: string | null;
+  fund_type?: string | null;
+  issue_date?: string | null;
+  establish_date?: string | null;
+  net_asset_scale?: string | null;
+  share_scale?: string | null;
+  manager_company?: string | null;
+  custodian?: string | null;
+  fund_manager?: string | null;
+  dividend_history?: string | null;
+  management_fee?: string | null;
+  custody_fee?: string | null;
+  subscription_fee?: string | null;
+  purchase_fee?: string | null;
+  redemption_fee?: string | null;
+  benchmark?: string | null;
+  tracking_target?: string | null;
+  realtime?: SpotQuoteRaw | null;
+  nav_history?: NavHistoryRaw[] | null;
+  source?: string;
+}
+
+interface NavHistoryRaw {
+  date: string;
+  nav?: number | null;
+  accumulated_nav?: number | null;
+  daily_growth?: number | null;
+}
+
+interface KlineItemRaw {
+  date: string;
+  open: number;
+  close: number;
+  high: number;
+  low: number;
+  volume: number;
+  amount: number;
+  amplitude: number;
+  change_pct: number;
+  change: number;
+  turnover_rate: number;
+}
+
+interface KlineResponseRaw {
+  code: string;
+  name?: string | null;
+  period: string;
+  total: number;
+  items: KlineItemRaw[];
+}
+
 // ==================== 搜索 ====================
 
 /**
@@ -101,6 +156,14 @@ interface SearchResultRaw {
   management_fee?: number | null;
   /** 跟踪标的 */
   tracking_target?: string | null;
+  /** 前端根据已核实交易能力标记；后端行情搜索本身不会返回该字段。 */
+  tradeable?: boolean;
+  /** 场外基金回退详情中的最新净值。 */
+  nav?: number | null;
+  /** 场外基金回退详情中的净值日期。 */
+  nav_date?: string | null;
+  /** 数据来源：market_quote 或 fund_detail。 */
+  data_source?: 'market_quote' | 'fund_detail';
 }
 
 // ==================== 自选股 ====================
@@ -258,6 +321,10 @@ export {
   type ApiResult,
   type ListResponse,
   type SpotQuoteRaw,
+  type EtfDetailRaw,
+  type NavHistoryRaw,
+  type KlineItemRaw,
+  type KlineResponseRaw,
   type SearchResultRaw,
   type WatchlistItemRaw,
   type WatchlistOpResult,

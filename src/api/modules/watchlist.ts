@@ -22,12 +22,16 @@ export function getWatchlist(includeQuote = true) {
 
 /**
  * 添加自选股
- * @description 后端仅接受 fund_code（多传字段会 400），fund_name 由后端自动回填
+ * @description 后端接受 fund_code，fund_name 为可选字段；传入名称可减少后端再次解析。
  * @param fundCode - 基金代码
+ * @param fundName - 基金名称（可选）
  */
-export function addWatchlist(fundCode: string) {
+export function addWatchlist(fundCode: string, fundName?: string) {
   console.log('[API] 添加自选:', fundCode);
-  return post<WatchlistOpResult>('/api/watchlist/add', { fund_code: fundCode }).then(res => res.data);
+  return post<WatchlistOpResult>('/api/watchlist/add', {
+    fund_code: fundCode,
+    ...(fundName ? { fund_name: fundName } : {}),
+  }).then(res => res.data);
 }
 
 /**

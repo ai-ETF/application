@@ -45,6 +45,8 @@ interface WatchlistItem {
   changePercent: number;
   /** 年初至今涨跌幅（百分比） */
   ytdChange: number;
+  /** 是否由后端返回了实时行情；false 时页面必须显示 --。 */
+  hasQuote?: boolean;
   /** 迷你走势图 URL（可选） */
   miniChartUrl?: string;
 }
@@ -66,6 +68,13 @@ interface HoldingItem {
   fundName: string;
   /** 基金代码 */
   fundCode: string;
+  /** 后端返回的精确可赎回份额，页面展示可四舍五入但提交必须使用该值。 */
+  availableShares?: number;
+  /** 后端行情净值；缺失时为 null，不用成本价冒充。 */
+  marketPrice?: number | null;
+  /** 后端是否返回了持仓市值与盈亏。 */
+  marketValueAvailable?: boolean;
+  costPrice?: number;
   /** 持仓金额（元） */
   holdingAmount: number;
   /** 持有份额（份） */

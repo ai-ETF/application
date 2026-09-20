@@ -8,4 +8,5 @@
 export * from './modules/market';
 export * from './modules/watchlist';
 export * from './modules/risk';
+export * from './modules/portfolio';
 export * from './types';
