@@ -5,5 +5,11 @@
  * 集中管理所有全局配置常量
  */
 
-/** 后端 API 基础地址 */
-export const API_BASE = 'https://ai-etf.xyz';
+/**
+ * 后端 API 基础地址
+ *
+ * 从 Vite 环境变量 VITE_API_BASE 读取（见根目录 .env.development / .env.production），
+ * 读不到时回退到线上域名 —— 兜底值必须与线上一致：这样"没配任何环境变量"时
+ * 行为与改动前完全相同，不会因为忘配环境变量而把请求打到错误的后端。
+ */
+export const API_BASE = import.meta.env.VITE_API_BASE || 'https://ai-etf.xyz';
