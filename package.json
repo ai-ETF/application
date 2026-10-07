@@ -34,7 +34,10 @@
     "build:quickapp-webview": "uni build -p quickapp-webview",
     "build:quickapp-webview-huawei": "uni build -p quickapp-webview-huawei",
     "build:quickapp-webview-union": "uni build -p quickapp-webview-union",
-    "type-check": "vue-tsc --noEmit"
+    "type-check": "vue-tsc --noEmit",
+    "e2e:patch": "node e2e/patches/apply-node-modules-patches.js",
+    "e2e:patch:check": "node e2e/patches/apply-node-modules-patches.js --check",
+    "test:e2e": "npm run e2e:patch && cross-env UNI_PLATFORM=mp-weixin DEBUG=automator:* DEBUG_COLORS=0 jest -i --config jest.e2e.config.js"
   },
   "dependencies": {
     "@dcloudio/uni-app": "3.0.0-4080420251103001",
