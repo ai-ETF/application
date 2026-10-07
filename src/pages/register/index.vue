@@ -27,6 +27,7 @@
             <SvgIcon name="user" size="36rpx" color="tertiary" />
           </view>
           <input
+            id="reg-username"
             v-model="username"
             class="input-field"
             type="text"
@@ -42,6 +43,7 @@
             <SvgIcon name="lock" size="36rpx" color="tertiary" />
           </view>
           <input
+            id="reg-password"
             v-model="password"
             class="input-field"
             :password="!showPassword"
@@ -60,6 +62,7 @@
             <SvgIcon name="lock" size="36rpx" color="tertiary" />
           </view>
           <input
+            id="reg-confirm"
             v-model="confirmPassword"
             class="input-field"
             :password="!showConfirmPassword"
@@ -82,6 +85,7 @@
 
         <!-- 注册按钮 -->
         <view
+          id="reg-submit"
           class="submit-btn"
           :class="{ 'submit-btn--disabled': !canSubmit || isLoading }"
           @tap="handleRegister"

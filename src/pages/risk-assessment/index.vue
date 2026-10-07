@@ -59,6 +59,7 @@
         <!-- 选项列表 -->
         <view class="options-list">
           <view
+            id="risk-option"
             v-for="(option, idx) in currentQuestion.options"
             :key="option.value"
             class="option-item"
@@ -81,6 +82,7 @@
         <!-- 按钮组 -->
         <view class="button-group">
           <view
+            id="risk-next"
             class="btn btn--primary"
             :class="{ 'btn--disabled': !selectedValue }"
             @tap="handleNext"

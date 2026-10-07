@@ -2,7 +2,7 @@
   <view class="page">
     <view class="header"><view class="back" @tap="back">‹</view><text>交易记录</text><view class="spacer"></view></view>
     <view class="notice">这里只展示后端已确认并写入交易流水的记录；待确认订单需以后端提供查询接口后展示。</view>
-    <scroll-view class="list" scroll-y>
+    <scroll-view id="trade-flow-list" class="list" scroll-y>
       <view v-if="loading" class="state">正在加载交易记录...</view>
       <view v-else-if="error" class="state"><text>{{ error }}</text><text class="retry" @tap="load">重新加载</text></view>
       <view v-else-if="items.length === 0" class="state">暂无已确认交易记录</view>

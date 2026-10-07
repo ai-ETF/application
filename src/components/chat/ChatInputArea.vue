@@ -15,6 +15,7 @@
     <!-- 文本输入框 -->
     <view class="input-field-wrapper" :class="{ 'input-field-wrapper--focused': isFocused }">
       <input
+        id="chat-input"
         v-model="inputText"
         class="text-input"
         type="text"
@@ -33,6 +34,7 @@
 
     <!-- 发送按钮 -->
     <view
+      id="chat-send"
       class="send-btn"
       :class="{ 'send-btn--active': canSend }"
       @tap="handleSend"

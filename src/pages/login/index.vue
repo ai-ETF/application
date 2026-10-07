@@ -30,6 +30,7 @@
             <SvgIcon name="user" size="36rpx" color="tertiary" />
           </view>
           <input
+            id="login-account"
             v-model="account"
             class="input-field"
             type="text"
@@ -47,6 +48,7 @@
             <SvgIcon name="lock" size="36rpx" color="tertiary" />
           </view>
           <input
+            id="login-password"
             v-model="password"
             class="input-field"
             :password="!showPassword"
@@ -67,6 +69,7 @@
 
         <!-- 登录按钮 -->
         <view
+          id="login-submit"
           class="submit-btn"
           :class="{ 'submit-btn--disabled': !canSubmit || isLoading }"
           @tap="handleLogin"

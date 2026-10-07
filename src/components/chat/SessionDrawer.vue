@@ -52,7 +52,7 @@
     </view>
 
     <!-- 会话列表 -->
-    <scroll-view class="session-list" scroll-y>
+    <scroll-view id="drawer-session-list" class="session-list" scroll-y>
       <view
         v-for="session in filteredSessions"
         :key="session.id"

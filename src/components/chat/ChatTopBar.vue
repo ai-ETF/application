@@ -11,7 +11,7 @@
     <!-- 左侧：菜单按钮 + 品牌区域 -->
     <view class="left-area">
       <!-- 菜单按钮 — 毛玻璃卡牌风格 -->
-      <view class="menu-btn" @tap="handleMenuClick">
+      <view id="drawer-toggle" class="menu-btn" @tap="handleMenuClick">
         <view class="menu-btn__inner">
           <view class="menu-icon-bar" />
           <view class="menu-icon-bar menu-icon-bar--short" />

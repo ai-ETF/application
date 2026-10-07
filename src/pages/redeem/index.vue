@@ -9,10 +9,10 @@
       <view class="row"><text>参考净值</text><text>{{ price == null ? '--' : price.toFixed(4) }}</text></view>
       <view class="row"><text>预计赎回金额</text><text>{{ estimatedAmount }}</text></view>
       <text class="hint">预计金额仅作参考；确认净值、赎回费及实际到账金额以后台确认结果为准。</text>
-      <input v-model="quantityText" type="digit" class="input" placeholder="请输入赎回份额" />
+      <input id="sell-quantity" v-model="quantityText" type="digit" class="input" placeholder="请输入赎回份额" />
       <view class="quick" @tap="quantityText = String(available)">全部赎回</view>
       <text v-if="message" class="message">{{ message }}</text>
-      <view class="submit" :class="{ disabled: submitting }" @tap="submit">{{ submitting ? '提交中...' : '确认赎回' }}</view>
+      <view id="sell-submit" class="submit" :class="{ disabled: submitting }" @tap="submit">{{ submitting ? '提交中...' : '确认赎回' }}</view>
       <view v-if="order" class="order-result">
         <view class="result-title">{{ order.status === 'pending' ? '赎回待确认' : '赎回结果' }}</view>
         <text v-if="order.amount > 0">确认金额：{{ order.amount.toFixed(2) }} 元</text>

@@ -10,6 +10,7 @@
  */
 <template>
   <scroll-view
+    id="chat-msg-list"
     ref="scrollViewRef"
     class="chat-area"
     scroll-y

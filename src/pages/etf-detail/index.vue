@@ -47,8 +47,8 @@
         </view>
 
         <view class="actions">
-          <view class="secondary-btn" @tap="toggleWatchlist">{{ followed ? '取消自选' : '添加自选' }}</view>
-          <view v-if="tradeable" class="primary-btn" @tap="goPurchase">模拟申购</view>
+          <view id="detail-watchlist-btn" class="secondary-btn" @tap="toggleWatchlist">{{ followed ? '取消自选' : '添加自选' }}</view>
+          <view v-if="tradeable" id="detail-purchase-btn" class="primary-btn" @tap="goPurchase">模拟申购</view>
         </view>
         <view v-if="!tradeable" class="trade-hint">该标的仅支持行情与自选，场外模拟申购请选支持交易的基金。</view>
 

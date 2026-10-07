@@ -8,9 +8,9 @@
       <view class="row"><text>当前参考净值</text><text>{{ referenceNav }}</text></view>
       <view class="row"><text>可用模拟现金</text><text>{{ cash == null ? '--' : `${cash.toFixed(2)} 元` }}</text></view>
       <text class="hint">实际确认净值与份额以后台交易规则为准，场内 ETF 不支持此操作。</text>
-      <input v-model="amountText" type="digit" class="input" placeholder="请输入申购金额" />
+      <input id="buy-amount" v-model="amountText" type="digit" class="input" placeholder="请输入申购金额" />
       <text v-if="message" class="message">{{ message }}</text>
-      <view class="submit" :class="{ disabled: submitting || !canSubmit }" @tap="submit">{{ submitting ? '提交中...' : '确认申购' }}</view>
+      <view id="buy-submit" class="submit" :class="{ disabled: submitting || !canSubmit }" @tap="submit">{{ submitting ? '提交中...' : '确认申购' }}</view>
       <view v-if="order" class="order-result">
         <view class="result-title">{{ statusLabel(order.status) }}</view>
         <text>订单金额：{{ formatMoney(order.amount) }} 元</text>

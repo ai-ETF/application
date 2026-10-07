@@ -23,6 +23,7 @@
     <!-- ==================== 顶部 Tab 切换 ==================== -->
     <view class="top-tab" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view
+        id="wl-tab-follow"
         class="tab-item"
         :class="{ 'tab-item--active': activeTab === 'follow' }"
         @tap="switchTab('follow')"
@@ -31,6 +32,7 @@
         <view v-if="activeTab === 'follow'" class="tab-indicator"></view>
       </view>
       <view
+        id="wl-tab-position"
         class="tab-item"
         :class="{ 'tab-item--active': activeTab === 'position' }"
         @tap="switchTab('position')"
@@ -47,6 +49,7 @@
         <view class="search-bar" :class="{ 'search-bar--focused': searchFocused }">
           <SvgIcon name="search" size="36rpx" color="tertiary" />
           <input
+            id="wl-search-input"
             v-model="searchKeyword"
             class="search-input"
             type="text"
@@ -68,8 +71,9 @@
       <!-- ETF 列表（可滚动） -->
       <scroll-view class="list-scroll" scroll-y>
         <!-- 自选列表（无搜索关键词时） -->
-        <view v-if="!hasKeyword" class="etf-list">
+        <view v-if="!hasKeyword" id="wl-follow-list" class="etf-list">
           <view
+            id="wl-follow-item"
             v-for="item in followList"
             :key="item.etfCode"
             class="swipe-row"
@@ -169,7 +173,7 @@
 
         <!-- 清空自选按钮（非搜索态且有数据时显示） -->
         <view v-if="!hasKeyword && followList.length > 0" class="clear-section">
-          <view class="clear-btn" @tap="handleClearAll">
+          <view id="wl-clear" class="clear-btn" @tap="handleClearAll">
             <SvgIcon name="trash-2" size="32rpx" color="tertiary" />
             <text class="clear-btn-text">清空自选</text>
           </view>

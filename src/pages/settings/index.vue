@@ -52,7 +52,7 @@
       <!-- ==================== 主要内容区域 ==================== -->
       <view class="main-content">
         <!-- 我的持仓卡片 -->
-        <view class="holdings-card" @tap="handleHoldingsClick">
+        <view id="settings-holdings" class="holdings-card" @tap="handleHoldingsClick">
           <view class="card-title-row">
             <SvgIcon name="briefcase" size="36rpx" color="primary" />
             <text class="card-title">我的持仓</text>
@@ -126,6 +126,7 @@
 
         <!-- 退出登录：先通知后端撤销会话，再清除本地认证信息 -->
         <view
+          id="settings-logout"
           class="logout-card"
           :class="{ 'logout-card--disabled': authLoading }"
           @tap="handleLogout"
