@@ -20,6 +20,7 @@ npm run test:e2e
 npm run test:e2e -- p1-trading
 npm run test:e2e -- p4-auth
 npm run test:e2e -- p2-chat
+npm run test:e2e -- p5-register
 
 # 只跑某几条用例（按用例名匹配）
 npm run test:e2e -- -t 'P4-02'
@@ -27,6 +28,9 @@ npm run test:e2e -- -t 'P4-02'
 
 > 💰 **`npm run test:e2e`（不带文件名）现在会连 P2 一起跑**，而 P2 是**真打大模型**的：
 > 多花约 94 秒 + **真实的 token 费用**。日常改 P1/P3/P4 时请**按文件名单跑**。
+
+> ⚠️ **P5 会往 Supabase 真写 2 个账号**（走 HTTP 的 + 走真实注册页 UI 的，`afterAll` 里注销）。
+> 它要求后端指向**本地栈**（文件里有闸门，非 localhost 直接抛）。跑全量时也会带上它。
 
 > ⚠️ **`-t` 匹配的是「完整用例名」，描述块的标题也算在内 —— 它会跨文件捞人。**
 > 实例：`p3-market-watchlist.e2e.js:674` 的 `describe` 标题是
@@ -38,6 +42,26 @@ npm run test:e2e -- -t 'P4-02'
 
 单跑一遍 P1 约 **130–150 秒**（其中开发者工具冷启动 10–15 秒）；单跑 P2 约 **94 秒**。
 2026-10-09 实测「P1+P3+P4」约 **225–250 秒**；加上 P2 再约 **+95 秒**。
+
+### 1.1 另一套：不需要开发者工具的单元 / 集成测试
+
+上面那套是**驱动真机**跑的（慢、要开开发者工具、要起后端）。纯逻辑那部分**不用这么重**：
+
+```powershell
+npm run test:unit      # 5 个文件 / 86 条，约 0.8 秒
+```
+
+- **不用开微信开发者工具、不用起后端、不用联网**，Windows 或 WSL 都能跑。
+- 跑的是 `src/**/__tests__/**/*.spec.ts`：SSE 行解析、分块 UTF-8 解码、账号格式与本地登录态、
+  请求模块的 401/放行/token 注入、两个 store 的纯动作与竞态保护。
+- **两套互不干扰**：jest 只认 `e2e/**/*.e2e.js`，vitest 只认 `src` 下的 `.spec.ts`，
+  匹配范围不重叠 —— `npm run test:unit` 不会误跑真机用例，反之亦然。
+- 为什么要分开：同一个功能，"逻辑对不对"和"用户在界面上看得见对不对"是两个问题。
+  前者用假 `uni` 几毫秒跑完，后者才需要真机。**判定优先级**见 `ai-etf/docs/e2e/02-核心路径与分层策略.md` §三。
+
+> ⚠️ **跑 `test:unit` 时如果看到一行 `The CJS build of Vite's Node API is deprecated`，那是虚惊。**
+> 它来自 vitest 的配置加载方式（本项目 `package.json` 没有 `"type": "module"`）。
+> 配置文件名已经改成 `vitest.config.mts` 来消掉这行；万一又出现，它**不影响任何结果**，别去改业务代码。
 
 > ⚠️ **跑出来的红，先别信。**
 > P4 套件会**间歇性红**，而且**换着红**（这次 P4-02、下次 P4-04、再下次 P4-00）。
@@ -107,6 +131,7 @@ e2e/
 ├── p3-market-watchlist.e2e.js        # P3 行情 + 自选 —— 5 组（P3-01~05）共 21 条，其中 1 条 skip
 ├── p1-trading.e2e.js                 # P1 交易核心 —— 6 组（P1-01~06）共 20 条，其中 2 条 skip
 ├── p2-chat.e2e.js                    # P2 AI 对话 —— 7 条，**0 条 skip**（真打 LLM，单轮约 94s，见 §5.10）
+├── p5-register.e2e.js                # P5 注册 + 风险测评 —— 6 条，**0 条 skip**（⚠️ 每轮真写 2 个 Supabase 账号、afterAll 注销；单轮约 73s，见 §5.12）
 ├── helpers/
 │   ├── index.js                      # 统一出口，用 require('./helpers') 引
 │   ├── waitFor.js                    # sleep / withTimeout / waitFor / waitForPage / waitForLeavePage
@@ -357,6 +382,55 @@ async function tapTabBar(page, label) {
 凡是「按位置取元素」的写法，都要先确认这个选择器**只在一处生效**；
 **能用文字/id 定位就别用序号**。
 
+### 5.12 `navigateTo` 压上去的页面，短时间内**跳不走**（2026-10-11 实测；真机未验）
+
+**症状**：一个页面提交成功后该跳首页，结果**纹丝不动**，等多久都不跳。
+看着像业务逻辑坏了，其实**业务是好的，是导航被吞了**。
+
+**定性实验**（三只一次性探针，验完已删；对照表见 `ai-etf/docs/e2e/00-背景与已知问题.md` **D-08**）：
+**同一个注册页**，只是「怎么进来的」不同 ——
+
+| 页面怎么进来的 | 从这个页面发什么 | 结果 |
+|---|---|---|
+| `uni.reLaunch` 深链打开 | 点提交，应用自己 `reLaunch('/pages/index/index')` | 2 秒到首页 ✅（`auth_token` 长度 926，注册真的成功了）|
+| 登录页点「还没有账户？注册」（内部是 `uni.navigateTo`）| 同上 | **两臂都显示「注册成功」toast**，但 12 秒 24 次轮询全停在注册页 ❌ |
+| `uni.reLaunch` 进 | **测试侧**发 `uni.reLaunch(...)`（对照组）| 走得掉 ✅ |
+| 点链接进 | **测试侧**发同一句 `uni.reLaunch(...)` | 8 秒不动 ❌ |
+| 点链接进 | **测试侧**发 `uni.navigateBack()` | 8 秒不动 ❌ |
+
+两个关键点：① 连**测试侧**发的跳转都进不去 ⇒ **不是应用那几行代码的问题**；
+② 探针 2 两臂都拿到了「注册成功」toast ⇒ 前端确实进了成功分支、账号也建出来了 ⇒ **别把它当成注册失败去查**。
+③ 通道被堵的时间**不止 8 秒**：为了重新进页面而发的 `gotoPage('/pages/login/index')` 重试 3 次、
+累计约 **40 秒**仍没跳出去（这一臂因此没测成）。
+
+**处置（只绕，不改 `src/` 里别人写的代码）**：
+
+1. **进场一律 `helpers.gotoPage`** —— 它走 `reLaunch`，属于「正常」的那一类状态。
+2. **要离开一个 `navigateTo` 进来的页面时，也用 `gotoPage` 收敛**（它自带重试），不要「点一下然后干等」。
+3. ⚠️ **刷新同一页时 `gotoPage` 要加 `force: true`**：默认的 `gotoPage` 看到「已经在目标页」就
+   直接 `return page`、**不重新挂载**（[helpers/nav.js:121](helpers/nav.js#L121)），拿到的是**旧 page 对象、旧页面状态**。
+   P5-01 负例② 第二轮就红在这上面：上一条负例留下的 `.error-box` 被当成了这一条的。
+   `force: true` 会重新 `reLaunch`，靠 **`page.id` 变了**判定「真的重开了」。
+
+**⚠️ 2026-10-11 补：范围比原先写的小 —— 只在「automator 驱动」这条路上出现。**
+
+用户在同一台模拟器、同一个开发者工具版本上**手动点**同样几项操作（登录页→「我的」、注册→首页、
+**测评页返回箭头→「我的」**）**全部正常**；另确认**注册页本来就没有左上角返回箭头**
+（不是缺陷，退出口是页面底部的「已有账户？登录」）。
+
+⭐ 其中「测评页返回箭头」这一项最有说服力：探针里最刺眼的一条是**测试侧直接发 `uni.navigateBack()` 都进不去**
+（D3，8 秒原地不动），而那个箭头实现的就是这一句（[risk-assessment/index.vue:468](src/pages/risk-assessment/index.vue#L468)）。
+现在人工点同一个箭头**一次就退回去了** —— 同一个页面、同一行代码、同一个模拟器，**唯一变量是「谁在驱动」**。
+⇒ 这不是「模拟器坏了」，也不是应用坏了，是**我们的驱动方式**的局限。
+**真机上是不是也这样：仍未验证**（模拟器 ≠ 真机）。验证办法：真机点一遍「登录页 → 注册 → 提交」。
+**在真机定性之前不要改业务代码**（按约定，缺陷只登记不顺手修）。
+
+**由此多出一条能补的用例**：既然堵的是「从这种页面往**外**跳」，那**「点链接进注册页」这一步本来是通的**
+（探针 2 和对照组都成功进了页面才卡住）⇒ 另立 **P5-04**，只验「进得去」：点完、`waitForPage` 到注册页、
+再断言注册页自己的两个输入框渲染出来了，不提交、不往外跳。**「测评页返回箭头」仍然补不了** —— 它本身就是往外跳那一步。
+⚠️ **P5-04 必须留在 `p5-register.e2e.js` 最后一条**：它是全文件唯一一个「点一下」把页面压进栈的用例，
+排它后面的用例会被自己的 `gotoPage` 噎住。
+
 ---
 
 ## 6. 常见故障 → 处置
@@ -367,6 +441,7 @@ async function tapTabBar(page, label) {
 |---|---|---|
 | `Wechat web devTools not found` | `executablePath` 与实际安装位置不符 | 改 [`jest.e2e.config.js`](../jest.e2e.config.js) 的 `executablePath` |
 | 日志只有 `gettestpublib`、**没有** `openProject`，然后白等 60s | **端口自撞** | 见下 |
+| `Failed to launch Wechat web devTools , please make sure http port is open` | **上一轮残留的开发者工具进程还占着 9420** | 见下面第二段 |
 | 从 WSL 里跑，报 rollup 错 | `node_modules` 是 Windows 侧装的 | 到 Windows 侧跑 |
 
 **端口自撞**是这套环境最阴的坑：`jest.e2e.config.js` 里有两个端口，**必须不一样**。
@@ -382,6 +457,20 @@ async function tapTabBar(page, label) {
 同一个原因还决定了 `teardown` **必须是 `quit`、不能用 `disconnect`**：开发者工具把 9420 一直 LISTENING 着，进程不退端口不放，下一轮就撞自己。`quit` 的代价是每轮多 10–15 秒冷启动。
 
 判断成功的唯一标准：日志里出现 **`automator:runtime connected`**。
+
+**残留实例占着 9420**（同一个家族，但触发方式不同，2026-10-11 实测）：
+`teardown: 'quit'` 只管得住**它自己启动的那一轮**。如果开发者工具是**你手动开的、或上一轮没退干净**，它会一直 LISTENING 在 9420 上，
+新的一轮起不来，而报的偏偏是那句**极具误导性**的 `please make sure http port is open`。
+实测：留着旧实例时一整轮 **28 秒即挂、0 条用例跑到**（`Test suite failed to run`）；`Stop-Process -Force` 杀掉之后立刻重跑，
+`automator:runtime connected` → **7 passed / 7 total**。
+处置：
+
+```powershell
+Get-Process wechatdevtools -ErrorAction SilentlyContinue | Stop-Process -Force
+```
+
+⚠️ **这句报错跟"端口没开"没关系，别去翻防火墙、也别去点开发者工具的设置。** 另有历史记录显示同一个字符串也可能与 appid 权限有关，
+所以它属于「一句话对应多种成因」的那类报错 —— **先看有没有残留进程，再看别的。**
 
 ### 6.2 `连不上后端 ... ECONNRESET`
 
@@ -539,6 +628,19 @@ export function expireAuthAndRedirect(message = ...) {
 | 17 | 换成「答得快」的问句 + 修 P2-06 / P2-07 后单跑 `test:e2e -- p2-chat` | 1 次 | **全绿**（`7 passed / 7 total`，94.4s） |
 | 18 | 稳定性复跑 `test:e2e -- p2-chat` | 1 次 | **再次全绿**（`7 passed / 7 total`，94.0s）⇒ 连续两轮全绿，P2 收工 |
 
+**19–21 是 P5（注册 + 风险测评）的落地记录**，跟 P4 无关，连同 §5.12 一起看：
+
+| # | 命令 | 跑了几次 | 结果 |
+|---|---|---|---|
+| 19 | 写 `e2e/p5-register.e2e.js` 第 1 版，单跑 `test:e2e -- p5-register` | 1 次 | **3 绿 3 红**。红的三条**全是同一个原因**（不是注册坏了）：P5-01 提交后停在注册页 / 负例① 也停在注册页 / P5-03 点返回箭头后停在测评页 —— 都是「导航没生效」，见 **§5.12** |
+| 20 | 三只一次性探针（临时文件 `z-probe-register.e2e.js`，**验完已删**）定性「页面怎么进来的」与「跳不跳得走」的关系 | 3 次 | 探针 1（`reLaunch` 进注册页）：提交后 2s 到首页 ✅；探针 2 两臂（点登录页的链接 `navigateTo` 进）：**两臂都记到了「注册成功」toast**，但 12s 内 24 次轮询全停在注册页 ❌；探针 3：D1 对照组（`reLaunch` 进）测试侧 `reLaunch` 走得掉 ✅ / D2 点链接进 ❌ / D3 点链接进 + `navigateBack` ❌ / D4 因通道仍被堵（`gotoPage` 重试 3 次约 40s 没跳出去）**没测成** ⇒ 定性为 **D-08** |
+| 21 | 按 §5.12 改完用例侧（进场/离场都走 `gotoPage`，刷新同一页加 `force: true`）后连跑 `test:e2e -- p5-register` | 2 次 | **两轮全绿**（`6 passed / 6 total`，72.4s / 72.6s）；跑完查本地 `auth.users` 里 `e2e%@ai-etf.xyz` **剩 0 条** ⇒ P5 收工 |
+| 22 | 新增 **P5-04**（登录页「还没有账户？注册」入口）后单跑 `test:e2e -- p5-register` | 1 次 | **全绿**（`7 passed / 7 total`，122.5s）。P5-04 单条 19.0s（`navigateTo` 本就慢）。日志可见它**真的点了**：`Element.tap` 落在「还没有账户？注册」上，页面 id 13 → 14、path 变 `pages/register/index`，随后 `#reg-username` / `#reg-confirm` 都查到 |
+| 23 | ⭐ **P5-04 反向验证**：把 `handleGoRegister` 里那行 `uni.navigateTo` 注释掉，单跑 `test:e2e -- p5-register -t 'P5-04'` | 1 次 | **该条变红** —— 「等待『点「还没有账户？注册」后应进到注册页』超时（15000ms）。**当时实际停在：`pages/login/index`**」（`1 failed, 6 skipped`）⇒ 它确实靠那次真实点击才通过，不是碰巧绿。改完按备份还原，`sha256` 与 git HEAD 一致，净改动为 0 |
+
+⚠️ **P5 每跑一轮真写 2 个账号**（走 HTTP 的 + 走真实注册页 UI 的），两个都在 `afterAll` 里注销。
+首跑因用例中途失败漏掉了 UI 那个（当时 `uiAccount` 是在末尾才赋值的），**已改成「点提交之前就先登记待清理」**。
+
 注意 `-t 'P4'` 实际跑 **9 条**（P4 的 6 条 + P3-05 的 3 条 —— 见 §1 的 ⚠️，`-t` 是按完整用例名匹配的，把 describe 标题里含 "P4" 的一起捞了进来）。
 
 **2026-10-10 补 P4-03 / P4-05 时踩的两个坑**（都已固化进代码注释与 `helpers/uniMock.js`）：
@@ -612,10 +714,28 @@ export function expireAuthAndRedirect(message = ...) {
 |---|---|---|
 | **P1-03**（申购 → pending 语义） | [`p1-trading.e2e.js`](p1-trading.e2e.js) 的 ②③③-bis④ | 把 `ai-etf/server/services/portfolio_service.py` 里那行 `"frozen_cash": float(frozen_cash + amount)` 改成 `float(frozen_cash)`（**故意不再冻结资金**）→ **重启后端**（没有 `--reload`）→ 跑 `npm run test:e2e -- p1-trading` |
 | **C1**（契约测试） | `ai-etf/tests/contract/` | 把 `PUT .../title` 那条路由注释掉 → C1 必须变红 |
-| **P2-07**（分块解码，⚠️ **还没跑过**） | [`p2-chat.e2e.js`](p2-chat.e2e.js) | 把 `src/` 里那个 `createUtf8StreamDecoder` 的分块拼接改坏（例如丢掉半块残留）→ 跑 `npm run test:e2e -- p2-chat` → **P2-07 必须变红**（它就是要抓「半个汉字被切开」）。**动的是别人写的 `src/`，动手前先问一声** |
+| **P2-07**（分块解码，⚠️ **反向验证还没做过**；用例本身 2026-10-11 跑绿） | [`p2-chat.e2e.js`](p2-chat.e2e.js) | 把 `src/utils/sse.ts` 里那个 `createUtf8StreamDecoder` 的分块拼接改坏（例如丢掉半块残留，见 §7.1）→ 跑 `npm run test:e2e -- p2-chat` → **P2-07 必须变红**（它就是要抓「半个汉字被切开」）<br>✅ 同一条防线在**单元测试**侧已经做过反向验证（§7.1 第 ①，5 条红），**要不要再在真机上做一次可以商量** |
 
 **已验证过一次（2026-10-08）**：改 `frozen_cash` 那行 → **4 条变红**（P1-03②③ + 连带 P1-05②/P1-06②）→ `git checkout` 还原 → 重启 → 重回 18 passed。
 细节与两条副产物见 `ai-etf/docs/e2e/05-执行计划.md` 的验收标准。
+
+### 7.1 单元 / 集成测试那套也做过同样的反向验证（2026-10-11 已实做）
+
+`npm run test:unit` 那 86 条**一次性改坏 5 处，5 个文件全部命中、共 10 条变红**，改完核对过原样还原（sha256 逐个比对，5/5 一致）：
+
+| 改坏哪行 | 变红 |
+|---|---|
+| `src/utils/sse.ts` 不再保留凑不齐的半个字符（`pendingBytes.slice(index)` → `[]`） | 5 条 |
+| `src/utils/auth.ts` 去掉 `isAuthSessionValid` 的第三条（防篡改） | 1 条 |
+| `src/utils/request.ts` 取消「行情接口未登录也放行」的例外 | 2 条 |
+| `src/stores/watchlist.ts` 去掉搜索里的竞态保护 | 1 条 |
+| `src/stores/chat.ts` 去掉 `appendBotToken` 的越界检查 | 1 条 |
+
+📌 **一个值得记的细节**：第一条**只让「手写降级实现」那一组变红，原生 `TextDecoder` 那一组照样绿** ——
+改的是降级实现自己的缓冲区，碰不到原生解码器。**真机走的正是降级那套**，所以两套必须分开测，不能只测一套。
+
+**跟 §7 上半部分的区别**：那三条是**真机**用例（慢、要开发者工具）；这里 5 条是**纯逻辑**用例（0.8 秒跑完）。
+**两套都要有**：单元测试能秒级抓回归，真机用例才能证明「用户看得见的东西是对的」。
 
 ⚠️ **做反向验证要动被测源码，做完必须 `git checkout` 还原并确认 `git status` 干净。**
 
@@ -630,6 +750,10 @@ export function expireAuthAndRedirect(message = ...) {
 | `p1-trading.e2e.js` P1-04 | **整个用例**（`it.skip`） | 见下 |
 | `p2-chat.e2e.js` P2-01 / P2-02 | **「长回答」这条路**（真后端答 20 秒以上的问句） | 见 §5.10 / **D-07**：服务方对长回答返回**空流**，用例只能挑「答得快」的问句。所以「长回答能不能正确渲染」在 E2E 里是**故意不覆盖**的，别当成漏测 |
 | `p2-chat.e2e.js` 全部 | **不模拟的流式行为**（中途断流、服务方报错、超长回答分页） | §5.9 的 `streamMock` 能造，但造出来的是**我们想象的**协议，只能验证「应用怎么处理」，不能验证「服务方实际发什么」。真协议只能靠跑真实 LLM |
+| ~~`p5-register.e2e.js` P5-01~~ | ~~**登录页「还没有账户？注册」这条入口本身**~~ | ✅ **2026-10-11 已补** —— 见 **P5-04**。原先判定「补不了」是把 D-08 的范围看宽了：D-08 堵的是「从 `navigateTo` 压上去的页面往**外**跳」，而**点链接进注册页这一步本来是通的**。于是另立一条**只验「进得去」**的用例（点完看一眼注册页的内容就收工，不提交、不往外跳）。**主流程**（P5-01）仍然走深链，理由不变 |
+| `p5-register.e2e.js` P5-03 | **测评页左上角返回箭头这个动作** | 同 D-08：测评页也是 `navigateTo` 压上去的，自动化点返回箭头后一直停在测评页。改为用 `gotoPage` 收敛回设置页。**「重进直接看画像」这个考点不受影响**。<br>⭐ **但功能本身是好的**（2026-10-11 人工验证）：人手动点同一个箭头**一次就退回「我的」（= 设置页）**。⇒ 这条「没覆盖」是**自动化驱动的局限**，**不是漏测、更不是功能坏了**。写出来每次都会红且红得没意义，故不写 |
+| `p5-register.e2e.js` P5-01 | 「两次输入密码不一致」的前端拦截 | 与负例② 同属前端就地拦下的分支，一个套路，没重复做 |
+| `p5-register.e2e.js` | 问卷加载失败的分支、`loadProfileResult()` 的「API 失败 → 回退本地缓存」、重测后覆盖旧画像 | 都是异常分支；要造「后端挂了但缓存还在」的状态得反过来改坏 `wx.request`，本阶段没做 |
 
 ### P1-04 为什么走不到（⚠️ 这条容易理解错）
 

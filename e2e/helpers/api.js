@@ -20,6 +20,7 @@ const http = require('http');
 const { URL } = require('url');
 
 const API_PREFIX = '/api/secure-chat';
+const RISK_PREFIX = '/api/risk';
 
 function apiBase() {
   return (process.env.E2E_API || 'http://localhost:8000').replace(/\/+$/, '');
@@ -225,8 +226,46 @@ async function deleteAllChats(token) {
   return results;
 }
 
+// ───────────────────────── 风险测评（P5 用）─────────────────────────
+
+/**
+ * 读风险问卷（`GET /api/risk/questionnaire`）。
+ *
+ * 返回 `{ status, id, questions }`。**题目数和选项值都从这里现取，不在用例里写死** ——
+ * 问卷是数据驱动的（`risk_questionnaires` 表里一行 JSON），后端换题库不该让用例变红，
+ * 只该让用例换个数量继续跑。当前本地栈实测 5 题 × 3 个选项（A/B/C）。
+ */
+async function getRiskQuestionnaire(token) {
+  const res = await requestJson('GET', `${RISK_PREFIX}/questionnaire`, { token });
+  const data = res.data && typeof res.data === 'object' ? res.data : {};
+  const questions = data.questions || [];
+  return {
+    status: res.status,
+    id: data.id,
+    version: data.version,
+    totalQuestions: data.total_questions != null ? data.total_questions : questions.length,
+    questions,
+  };
+}
+
+/** 读画像（`GET /api/risk/profile`）。未测评时后端返回 `{has_profile:false, profile:null}`，**不是 404**。 */
+async function getRiskProfile(token) {
+  const res = await requestJson('GET', `${RISK_PREFIX}/profile`, { token });
+  const data = res.data && typeof res.data === 'object' ? res.data : {};
+  return { status: res.status, hasProfile: Boolean(data.has_profile), profile: data.profile || null };
+}
+
+/** 直接调后端提交答案（`POST /api/risk/submit`，成功 201）。用于「造服务端状态」和交叉断言。 */
+async function submitRiskAnswers(token, questionnaireId, answers) {
+  return requestJson('POST', `${RISK_PREFIX}/submit`, {
+    token,
+    body: { questionnaire_id: questionnaireId, answers },
+  });
+}
+
 module.exports = {
   API_PREFIX,
+  RISK_PREFIX,
   apiBase,
   requestJson,
   ping,
@@ -239,4 +278,7 @@ module.exports = {
   renameChat,
   deleteChat,
   deleteAllChats,
+  getRiskQuestionnaire,
+  getRiskProfile,
+  submitRiskAnswers,
 };
