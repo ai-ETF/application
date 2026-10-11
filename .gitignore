@@ -23,3 +23,7 @@ dist
 
 .env
 
+
+# 微信开发者工具的「个人层」配置 —— 本机私有，不入库
+# 内容与理由见 e2e/环境配置.md §1（必须放在 src/ 下，放仓库根目录不生效）
+src/project.private.config.json

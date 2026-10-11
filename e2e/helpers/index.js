@@ -23,6 +23,7 @@ const storage = require('./storage');
 const api = require('./api');
 const uniMock = require('./uniMock');
 const env = require('./env');
+const streamMock = require('./streamMock');
 
 module.exports = {
   ...waitFor,
@@ -31,4 +32,5 @@ module.exports = {
   ...api,
   ...uniMock,
   ...env,
+  ...streamMock,
 };

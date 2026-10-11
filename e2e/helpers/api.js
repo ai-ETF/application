@@ -171,6 +171,60 @@ async function getChats(token) {
   return { status: res.status, total: data.total != null ? data.total : chats.length, chats };
 }
 
+/**
+ * 读某个会话的消息历史。返回 `{ status, total, chatTitle, messages }`。
+ *
+ * P2-02 靠它断言「续聊后后端确实有 4 条」、P2-06 靠它给 UI 回填结果当期望值 ——
+ * 也就是说**期望值是从后端现取的，不是测试里写死的**，后端改了行为用例会跟着红。
+ */
+async function getMessages(token, chatId, { limit = 100 } = {}) {
+  const res = await requestJson(
+    'GET',
+    `${API_PREFIX}/chats/${encodeURIComponent(chatId)}/messages?limit=${limit}`,
+    { token }
+  );
+  const data = res.data && typeof res.data === 'object' ? res.data : {};
+  const messages = data.messages || [];
+  return {
+    status: res.status,
+    total: data.total != null ? data.total : messages.length,
+    chatTitle: data.chat_title,
+    messages,
+  };
+}
+
+/**
+ * 直接调后端重命名会话（`PUT /chats/{id}/title`）。
+ *
+ * 用途是**交叉断言的后半截**：P2-04 走完 UI 之后，用它 + `getChats` 确认
+ * 「后端真的改了」。也可以反过来当**造状态的工具**用（不走 UI 直接改标题）。
+ */
+async function renameChat(token, chatId, title) {
+  return requestJson('PUT', `${API_PREFIX}/chats/${encodeURIComponent(chatId)}/title`, {
+    token,
+    body: { title },
+  });
+}
+
+/** 直接调后端删除会话（`DELETE /chats/{id}`）。404 视为「已不存在」，不抛错。 */
+async function deleteChat(token, chatId) {
+  const res = await requestJson('DELETE', `${API_PREFIX}/chats/${encodeURIComponent(chatId)}`, {
+    token,
+  });
+  if (res.status === 404) return { status: 404, alreadyGone: true, data: res.data };
+  return { status: res.status, data: res.data };
+}
+
+/** 兜底清理：把该账号名下所有会话删干净。afterAll 用它，避免 Supabase 里堆积测试数据。 */
+async function deleteAllChats(token) {
+  const { chats } = await getChats(token);
+  const results = [];
+  for (const c of chats) {
+    results.push({ id: c.id, ...(await deleteChat(token, c.id)) });
+  }
+  return results;
+}
+
 module.exports = {
   API_PREFIX,
   apiBase,
@@ -181,4 +235,8 @@ module.exports = {
   revokeToken,
   deleteAccount,
   getChats,
+  getMessages,
+  renameChat,
+  deleteChat,
+  deleteAllChats,
 };
