@@ -42,11 +42,40 @@ async function removeKey(program, key) {
   await program.callUniMethod('removeStorageSync', key);
 }
 
+/**
+ * 在小程序内批量写 / 删存储（`wx.setStorageSync` / `wx.removeStorageSync`）。
+ *
+ * ⚠️ 为什么写和删都要「两遍」（先走 callUniMethod，再走这里）——
+ * 2026-10-11 实测发现：**两条通道看到的存储视图会不同步**，两个方向都出现过：
+ *   · 读：`callUniMethod('getStorageSync','auth_token')` 回空串，
+ *         同一时刻小程序内却读得出完整的 926 字符 JWT（`readAuthKeysInApp` 的注释里有记录）；
+ *   · 删：`callUniMethod('removeStorageSync', …)` 清完之后，**应用自己仍认为登录态有效**
+ *         —— P4-04（「未登录直接进首页应被踢到登录页」）因此偶发超时：
+ *         清是清了（测试侧读也是空），但应用没被踢。
+ * 所以凡是「造登录态 / 清登录态」，两条通道都做一遍，读才用 `readAuthKeysInApp`。
+ * 成因未查明，标「需确认」，别据此改业务代码。
+ */
+async function setKeysInApp(program, pairs) {
+  await program.evaluate((entries) => {
+    for (const [key, value] of entries) wx.setStorageSync(key, value);
+  }, pairs);
+}
+
+/** 在小程序内批量删键（配 `setKeysInApp` 用，见其注释）。 */
+async function removeKeysInApp(program, keys) {
+  await program.evaluate((list) => {
+    for (const key of list) wx.removeStorageSync(key);
+  }, keys);
+}
+
 /** 清掉 4 个认证键 + 2 个历史键，等价于 clearAuthSession() 的效果。 */
 async function clearAuthKeys(program) {
-  for (const key of [...Object.values(AUTH_STORAGE_KEYS), ...LEGACY_KEYS]) {
+  const keys = [...Object.values(AUTH_STORAGE_KEYS), ...LEGACY_KEYS];
+  for (const key of keys) {
     await removeKey(program, key);
   }
+  // 再在小程序内清一遍 —— 只清一遍时 P4-04 会偶发「清不掉、没被踢」（见 setKeysInApp 注释）
+  await removeKeysInApp(program, keys);
 }
 
 /**
@@ -62,6 +91,32 @@ async function readAuthRaw(program) {
     raw[key] = await getKey(program, key);
   }
   return raw;
+}
+
+/**
+ * 在**小程序内部**读 4 个认证键的原始值（返回 `{token, user, loginTime, expireTime}`，
+ * 不存在的键是空串）。
+ *
+ * ⚠️ 为什么不能一律用 `getKey`（= `callUniMethod('getStorageSync')`）——2026-10-11 实测：
+ * 这条通道**会单独把 `auth_token` 读成空串**，而同一时刻小程序内
+ * `wx.getStorageSync('auth_token')` 明明读得出完整的 926 字符真 JWT。
+ * 在 P4-03（取消支）那条的时序里 **3/3 轮都能复现**，换个更短的时序就复现不了
+ * （成因未查明，记在 `application/e2e/README.md` §6.8）。
+ *
+ * 所以规矩是：
+ *   - **正向**断言「某个键还在」→ 用本函数（= 应用自己读的那条通道，可信）；
+ *   - 反向断言「键都清空了」→ 用 `findLeftoverAuthKeys` 无妨 ——
+ *     空串只会让它多报「已清空」，不会伪造出「还在」。
+ */
+async function readAuthKeysInApp(program) {
+  return await program.evaluate((keys) => {
+    const out = {};
+    for (const [name, key] of Object.entries(keys)) {
+      const v = wx.getStorageSync(key);
+      out[name] = v === undefined || v === null ? '' : String(v);
+    }
+    return out;
+  }, AUTH_STORAGE_KEYS);
 }
 
 /** 断言用：返回「还有哪些键没清干净」。空数组 = 全部已清空。 */
@@ -98,10 +153,15 @@ async function seedValidSession(program, { token, user }) {
   const jwtExpireTime = jwtPayload && jwtPayload.exp ? jwtPayload.exp * 1000 : Number.POSITIVE_INFINITY;
   const expireTime = Math.min(loginTime + AUTH_SESSION_TTL_MS, jwtExpireTime);
 
-  await setKey(program, AUTH_STORAGE_KEYS.token, token);
-  await setKey(program, AUTH_STORAGE_KEYS.user, JSON.stringify(user));
-  await setKey(program, AUTH_STORAGE_KEYS.loginTime, String(loginTime));
-  await setKey(program, AUTH_STORAGE_KEYS.expireTime, String(expireTime));
+  const pairs = [
+    [AUTH_STORAGE_KEYS.token, token],
+    [AUTH_STORAGE_KEYS.user, JSON.stringify(user)],
+    [AUTH_STORAGE_KEYS.loginTime, String(loginTime)],
+    [AUTH_STORAGE_KEYS.expireTime, String(expireTime)],
+  ];
+  for (const [key, value] of pairs) await setKey(program, key, value);
+  // 两条通道都写一遍（见 setKeysInApp 注释：通道会不同步，写一遍时应用可能看不见）
+  await setKeysInApp(program, pairs);
 
   return { loginTime, expireTime };
 }
@@ -118,10 +178,14 @@ async function seedLocallyExpiredSession(program, { token, user }) {
   const loginTime = now - 1000;
   const expireTime = now - 1000; // 已经过去
 
-  await setKey(program, AUTH_STORAGE_KEYS.token, token);
-  await setKey(program, AUTH_STORAGE_KEYS.user, JSON.stringify(user));
-  await setKey(program, AUTH_STORAGE_KEYS.loginTime, String(loginTime));
-  await setKey(program, AUTH_STORAGE_KEYS.expireTime, String(expireTime));
+  const pairs = [
+    [AUTH_STORAGE_KEYS.token, token],
+    [AUTH_STORAGE_KEYS.user, JSON.stringify(user)],
+    [AUTH_STORAGE_KEYS.loginTime, String(loginTime)],
+    [AUTH_STORAGE_KEYS.expireTime, String(expireTime)],
+  ];
+  for (const [key, value] of pairs) await setKey(program, key, value);
+  await setKeysInApp(program, pairs); // 同上：两条通道都写
 
   return { loginTime, expireTime };
 }
@@ -133,8 +197,11 @@ module.exports = {
   getKey,
   setKey,
   removeKey,
+  setKeysInApp,
+  removeKeysInApp,
   clearAuthKeys,
   readAuthRaw,
+  readAuthKeysInApp,
   findLeftoverAuthKeys,
   parseJwtPayload,
   seedValidSession,

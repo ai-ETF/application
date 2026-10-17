@@ -30,11 +30,11 @@ function apiBase() {
  * 发一次 JSON 请求。**不抛 HTTP 错误** —— 而是把 status 交回调用方，
  * 因为「拿到 401」本身就是要断言的结果，不是异常。
  */
-function requestJson(method, path, { body, token, timeout = 15000 } = {}) {
+function requestJson(method, path, { body, token, timeout = 15000, headers: extraHeaders } = {}) {
   return new Promise((resolve, reject) => {
     const url = new URL(apiBase() + path);
     const payload = body === undefined ? null : Buffer.from(JSON.stringify(body), 'utf8');
-    const headers = {};
+    const headers = Object.assign({}, extraHeaders || {});
     if (payload) {
       headers['Content-Type'] = 'application/json';
       headers['Content-Length'] = payload.length;
@@ -81,6 +81,31 @@ async function ping() {
     return res.status === 200;
   } catch {
     return false;
+  }
+}
+
+/**
+ * 确认后端的开发端点开关是开的（`/api/portfolio/test/*` 真的注册了）。
+ *
+ * 为什么值得单跑一次：后端从 2026-10-13 起**默认不注册**这组免登录端点
+ * （`server/api/portfolio.py` 的 `_test_endpoints_enabled`，要 `ENABLE_TEST_ENDPOINTS=1`）。
+ * 没开时这些路径**根本不存在**，P1 造前置数据那几步会拿到 404 —— 而 404 和
+ * 「后端没起」「基金代码写错」长得一模一样，很容易查错方向。提前问一次，
+ * 失败信息就能直说是开关没开。
+ *
+ * 判定口径：**只要不是 404 就算装了**（用不存在的用户 id 去查，500 也算装了）。
+ */
+async function assertTestEndpointsEnabled() {
+  const res = await requestJson('GET', '/api/portfolio/test/positions?include_quote=false', {
+    headers: { 'X-User-Id': '00000000-0000-0000-0000-000000000000' },
+  });
+  if (res.status === 404) {
+    throw new Error(
+      '后端没有注册 /api/portfolio/test/* —— 启动时漏了 ENABLE_TEST_ENDPOINTS=1。\n' +
+        '→ E2E_MARKET_FIXTURE="$PWD/docs/e2e/fixtures/market_snapshot.json" ENABLE_TEST_ENDPOINTS=1 \\\n' +
+        '    poetry run uvicorn server.app:app --port 8000\n' +
+        '→ 起没起对看启动日志：会有一行「ENABLE_TEST_ENDPOINTS 已开启」。'
+    );
   }
 }
 
@@ -157,6 +182,37 @@ async function deleteAccount(token, password) {
     throw new Error(`注销账号失败 HTTP ${res.status}：${JSON.stringify(res.data)}`);
   }
   return { success: true, data: res.data };
+}
+
+/**
+ * 把某基金**最早一笔** pending 买单的确认日改到过去（对应 `e2e_fixture.py backdate-order`）。
+ *
+ * 为什么需要它：买单落库的确认日 = 受理日 + `confirm_delay` 个交易日，而本仓库
+ * **所有**基金的 `confirm_delay` 都 ≥ 1 —— 所以一次 E2E 会话内**造不出「已确认持仓」**。
+ * 而「赎回被在途申购拦截」（P1-04）的前提恰恰是「该基金已有已确认持仓 + 有 pending 买单」。
+ * 改完确认日，再调 `POST /api/portfolio/confirm-pending`（带用户 JWT）就能得到这个状态。
+ *
+ * 走的是后端**开发端点**（免 JWT，用 `X-User-Id`），所以这里不需要任何数据库密钥 ——
+ * 这是它没有直连 Supabase 的原因（那份密钥不该出现在测试进程里）。
+ *
+ * ⚠️ 返回的是后端原样 JSON：`{success, message, data:{order_id, old_confirm_date, new_confirm_date}}`。
+ * 拿不到 pending 订单时后端返回 400（这里会抛），不是静默成功。
+ */
+async function backdateOrder(userId, fundCode, { targetDate } = {}) {
+  const body = { fund_code: fundCode };
+  if (targetDate) body.target_date = targetDate;
+  const res = await requestJson('POST', '/api/portfolio/test/backdate-order', {
+    body,
+    headers: { 'X-User-Id': userId },
+  });
+  if (res.status !== 200) {
+    const hint =
+      res.status === 404
+        ? '→ 404 通常是后端启动时漏了 ENABLE_TEST_ENDPOINTS=1（整组 /test/* 默认不注册）。'
+        : `→ 该用户该基金必须有一笔 pending 买单（user_id=${userId}, fund_code=${fundCode}）。`;
+    throw new Error(`回填确认日失败 HTTP ${res.status}：${JSON.stringify(res.data)}\n${hint}`);
+  }
+  return res.data;
 }
 
 // ───────────────────────── 交叉断言用的只读接口 ─────────────────────────
@@ -269,10 +325,12 @@ module.exports = {
   apiBase,
   requestJson,
   ping,
+  assertTestEndpointsEnabled,
   registerAccount,
   loginWithPassword,
   revokeToken,
   deleteAccount,
+  backdateOrder,
   getChats,
   getMessages,
   renameChat,

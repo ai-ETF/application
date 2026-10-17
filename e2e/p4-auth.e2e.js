@@ -163,6 +163,71 @@ async function countDrawerSessions() {
   return box.count;
 }
 
+// ─────────────────── 失败现场的三件套（2026-10-12 加） ───────────────────
+
+/** 把 key 的原始值压成「还剩几个字符」——报错文案里看得清，又不刷屏。 */
+function keyLens(raw) {
+  return Object.fromEntries(Object.entries(raw || {}).map(([k, v]) => [k, v ? String(v).length : 0]));
+}
+
+/**
+ * 等「应用自己把用户踢到登录页」，失败时把现场三件套贴进报错。
+ *
+ * 为什么加：P4-01 / P4-02 / P4-04 报「该被踢却停在原地」时，原来的报错只有「当时实际停在」。
+ * 那句话**分不开三种完全不同的成因**（登记在 README §6.6），而处理方向完全相反：
+ *
+ *   · 4 个 key **还在**      → **触发链压根没跑起来**。这三条的触发都靠「reLaunch 首页 →
+ *                              `onMounted` → `fetchSessions()` → `request()`」，而 `onMounted`
+ *                              只在挂载时跑一次。⇒ 这一发 reLaunch 没让首页重新挂载。
+ *                              （2026-10-12 探针实测：真 token、把会话改成「本地已过期」、
+ *                               **什么导航都不发** → 停在首页 5s、key 一个没少、无提示，
+ *                               与那次「镜像红」的现场完全一致；补上 reLaunch 则 8/8 被踢。）
+ *   · key 已清 + **弹了提示** → 应用走的是 `expireAuthAndRedirect()` 那条（清空 + 提示 + 250ms 后跳），
+ *                              也就是**确实决定了要跳**，但那发 `uni.reLaunch('/pages/login/index')`
+ *                              被环境丢掉了（README §6.6 的 甲-b）
+ *   · key 已清 + **没弹提示** → ⚠️ **这一格不能直接下结论**。应用一共有四条踢人路径，其中三条
+ *                              （`App.vue` 的 `onShow` 守卫、导航拦截器、`onLaunch` 的 restoreSession）
+ *                              **本来就不弹提示**，它们清完 key 再跳——所以「没提示」既可能是
+ *                              被 `redirecting` 旗标吞了（甲-a），也可能只是走了另一条不弹提示的路。
+ *                              2026-10-12 实测过这一幕：单独跑 P4-01、故意把等待缩到 3 秒，
+ *                              应用照样自己跳到了登录页，而期间一次提示都没有。
+ *                              ⇒ 遇到这一格，按 README §6.6 的探针法再查，别照着这条就直接定因。
+ *
+ * ⚠️ **只改失败时的报错文案，不碰任何判定** —— 加它前后绿/红完全一致（2026-10-12 已实测：
+ *    改前整条 P4 7/7 通过；改后同样 7/7 通过）。
+ * ⚠️ 依赖 `beforeAll` 里装的提示旁观桩；没装也能跑，只是那一项会是空数组。
+ */
+async function waitForKickToLogin(label, { timeout = 5000 } = {}) {
+  // 把 toast 旁观桩的缓冲区清零，这样下面报「本次期间」时是真的只指这一次等待，
+  // 不会混进本文件前面几条用例弹过的 toast。
+  await program
+    .evaluate(() => {
+      if (wx.__e2eNativeCalls) wx.__e2eNativeCalls.showToast = [];
+    })
+    .catch(() => {});
+
+  try {
+    return await helpers.waitForPage(program, LOGIN_PATH, { timeout, label });
+  } catch (e) {
+    const where = await program
+      .currentPage()
+      .then((p) => (p ? p.path : '(currentPage 返回空)'))
+      .catch(() => '(读不到)');
+    const inApp = await helpers.readAuthKeysInApp(program).catch(() => null);
+    const viaTest = await helpers.readAuthRaw(program).catch(() => null);
+    const calls = await helpers.readNativeCalls(program, 'showToast').catch(() => []);
+    const toasts = (Array.isArray(calls) ? calls : []).map((t) => t.title || t.content || '(无文案)');
+    e.message +=
+      `\n  ↳ 失败现场（诊断）：应用停在 ${where}` +
+      `\n     应用侧 4 个 key（判读看这一行）：${JSON.stringify(keyLens(inApp))}` +
+      `\n     测试侧 6 个 key（仅供参照）：${JSON.stringify(keyLens(viaTest))}` +
+      `\n     本次等待期间应用弹的提示：${JSON.stringify(toasts)}` +
+      `\n     判读：「key 还在」= 触发链没跑起来（这发 reLaunch 没让首页重新挂载）；` +
+      `「key 已清 + 弹了提示」= 应用决定要跳、但那发导航丢了；「key 已清 + 没弹提示」= 被 redirecting 旗标吞了`;
+    throw e;
+  }
+}
+
 describe('P4 鉴权失效路径', () => {
   let account;
 
@@ -185,6 +250,11 @@ describe('P4 鉴权失效路径', () => {
           '→ 或设 E2E_API 指向别的地址。'
       );
     }
+
+    // 装一个**只记录、不改行为**的 toast 旁观桩（内部把 wx.showToast 包一层后原样转发）。
+    // 为什么：P4-01/02/04 一旦红，判读要靠「弹没弹 toast」把成因分开（见 waitForKickToLogin）。
+    // 它只加一层转发、不改任何行为，所以装在整个文件上、不还原。
+    await helpers.stubNativeCall(program, 'showToast');
 
     account = await helpers.registerAccount();
     console.log('[P4] 一次性账号：', account.email);
@@ -279,10 +349,7 @@ describe('P4 鉴权失效路径', () => {
     await helpers.reLaunch(program, INDEX_ROUTE);
 
     // 预期③：跳转发生在 250ms(setTimeout) + reLaunch 之后，5s 绰绰有余
-    const page = await helpers.waitForPage(program, LOGIN_PATH, {
-      timeout: 5000,
-      label: '本地过期后应被踢到登录页',
-    });
+    const page = await waitForKickToLogin('本地过期后应被踢到登录页', { timeout: 5000 });
     expect(page.path).toBe(LOGIN_PATH);
 
     // 预期④：4 个 auth key 全部清空（clearAuthSession，auth.ts#L165-L170）
@@ -319,10 +386,8 @@ describe('P4 鉴权失效路径', () => {
     await helpers.waitForStablePage(program, { stableMs: 2500 });
     await helpers.reLaunch(program, INDEX_ROUTE);
 
-    const page = await helpers.waitForPage(program, LOGIN_PATH, {
-      timeout: 8000, // 比 P4-01 宽：这里要等一次真实的 HTTP 往返
-      label: '401 后应被踢到登录页',
-    });
+    // 比 P4-01 宽：这里要等一次真实的 HTTP 往返
+    const page = await waitForKickToLogin('401 后应被踢到登录页', { timeout: 8000 });
     expect(page.path).toBe(LOGIN_PATH);
     expect(await helpers.findLeftoverAuthKeys(program)).toEqual([]);
   });
@@ -338,8 +403,8 @@ describe('P4 鉴权失效路径', () => {
   //   ③ 本地 4 个 auth key + 2 个历史键清空 —— ✅ 覆盖
   //   ④ 跳转 /pages/login/index —— ✅ 覆盖
   //   ⑤ 重新登录同一账号仍成功 —— ➡️ 挪到 P4-05 做（那里要的就是一次真实 UI 登录），此处不重复
-  //   ❌ **没覆盖**：确认框里点「取消」那一支（`if (!result.confirm) return`）。
-  //      技术上做得到（`withNativeModal(program, {confirm:false})`），但没写 —— 不是做不到，是没做。
+  //   ✅ （2026-10-11 补上）确认框里点「取消」那一支（`if (!result.confirm) return`）
+  //      —— 见下面紧跟的「P4-03（取消支）」。单独一条，没有并进本用例。
   it('P4-03 正常登出：撤销服务端 token + 清本地 4 个 key + 跳登录页', async () => {
     // 步骤 0：先把应用推到登录页，拿一个确定的起点（也顺手排掉上一条留下的导航尾巴）。
     await helpers.waitForStablePage(program, { stableMs: 2500 });
@@ -416,6 +481,84 @@ describe('P4 鉴权失效路径', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────
+  // P4-03（取消支）确认框点「取消」→ 什么都不该发生
+  //
+  // 为什么单开一条而不是并进 P4-03：一个用例里既点确定又点取消，
+  // 读的时候根本分不清哪句断言在测哪一支，红也不知道是哪一支红。
+  //
+  // 这一支测的是**误触防呆**：`handleLogout`（settings/index.vue#L209）拿到
+  // `result.confirm === false` 就 `return`，不该撤销 token、不该清本地、不该跳页。
+  // 值得单独测的理由：这三个副作用**都是看得见的**，一旦 `return` 写丢、或者被挪到
+  // 副作用后面，用户点「取消」照样被登出 —— 而 P4-03（点确定）那条**永远是绿的**，
+  // 完全拦不住这种回归。
+  it('P4-03（取消支）点「取消」→ 不登出：仍在设置页、本地会话原样、token 仍好用', async () => {
+    // 起点与 P4-03 相同，理由也一样（顺手排掉上一条留下的导航尾巴）
+    await helpers.waitForStablePage(program, { stableMs: 2500 });
+    await helpers.clearAuthKeys(program);
+    await helpers.reLaunch(program, LOGIN_ROUTE);
+    await helpers.waitForPage(program, LOGIN_PATH, { timeout: 5000, label: 'P4-03(取消) 起点：登录页' });
+
+    // 同 P4-03：必须现登录一把**新** token。
+    // 走到这里 account.token 已被 P4-02、P4-03 各撤销过一次，后端黑名单是内存态不会解除，
+    // 拿它当「登出前还是好用的」对照组是自欺欺人。
+    const fresh = await helpers.loginWithPassword(account.email, account.password);
+    expect((await helpers.getChats(fresh.token)).status).toBe(200); // 对照组：现在确实好用
+
+    await helpers.seedValidSession(program, { token: fresh.token, user: buildUser(account) });
+    await helpers.reLaunch(program, SETTINGS_ROUTE);
+    await helpers.waitForPage(program, SETTINGS_PATH, { timeout: 8000, label: '应落到设置页' });
+
+    const logoutBtn = await helpers.waitFor(
+      async () => {
+        const p = await program.currentPage();
+        if (p.path !== SETTINGS_PATH) return false;
+        return (await p.$('#settings-logout')) || false; // settings/index.vue#L129
+      },
+      { timeout: 8000, label: '设置页「退出登录」按钮就位' }
+    );
+
+    // 这次把 wx.showModal 换成「自动点取消」。桩法与 P4-03 完全一样 ——
+    // 应用这条是 `await uni.showModal(...)`，只有 withNativeModal 管用
+    // （原因见上面 P4-03 的注释和 helpers/uniMock.js 顶部第 5 条）。
+    let modalCalls = [];
+    await helpers.withNativeModal(program, { confirm: false }, async () => {
+      await logoutBtn.tap();
+      modalCalls = await helpers.readNativeModalCalls(program);
+    });
+
+    // 对照组（不能省）：弹窗**确实弹了**。
+    // 没有它，「什么都没发生」和「按钮压根没点到」在断言层面长得一模一样 ——
+    // 那样这条用例就是一句永远为真的废话。
+    expect(modalCalls.length).toBeGreaterThan(0);
+    expect(modalCalls[0].title).toBe('退出登录');
+    expect(modalCalls[0].content).toBe('退出后需要重新输入用户名和密码，是否继续？');
+    expect(modalCalls[0].confirmText).toBe('退出');
+
+    // 给它足够的时间去「犯错」，而不是等它成功：
+    // P4-03 实测点确定后约 500ms 内 4 个 key 就清空、页面就跳走了，
+    // 所以 3 秒后仍是原样，是它**没动**的证据，不是「还没来得及」。
+    await helpers.sleep(3000);
+
+    // ① 没跳页（`if (!result.confirm) return` 在三件副作用之前，settings/index.vue#L209-L216）
+    expect((await program.currentPage()).path).toBe(SETTINGS_PATH);
+
+    // ② 本地 4 个认证键一个没少 —— 正对照 P4-03 的 `toEqual([])`。
+    //    ⚠️ 这里**必须**用 readAuthKeysInApp（小程序内读），不能用 findLeftoverAuthKeys：
+    //    2026-10-11 实测，`callUniMethod('getStorageSync')` 在这条时序里会把 auth_token
+    //    单独读成空串（3/3 轮复现），而同一时刻小程序内读得出完整的 926 字符 JWT ——
+    //    是通道的问题，不是应用的问题。详见 `helpers/storage.js` 里 readAuthKeysInApp 的注释。
+    const keys = await helpers.readAuthKeysInApp(program);
+    expect(keys.token.length).toBeGreaterThan(0); // 真 JWT ≈ 900+ 字符
+    expect(JSON.parse(keys.user).id).toBe(account.userId);
+    expect(Number(keys.expireTime)).toBeGreaterThan(Date.now());
+
+    // ③ 后端没收到登出请求 —— 用**登出前那把** token 直连后端验。
+    //    200 = 它还没被撤销 = 应用真的没发那个请求。
+    //    这一条同时排掉了「本地看着没动、其实后端已经登出了」这种半拉子状态。
+    expect((await helpers.getChats(fresh.token)).status).toBe(200);
+  });
+
+  // ─────────────────────────────────────────────────────────────────
   it('P4-04 未登录直接进首页：被统一踢到登录页', async () => {
     // 前置：清空本地登录态（含历史键）
     await helpers.clearAuthKeys(program);
@@ -433,10 +576,7 @@ describe('P4 鉴权失效路径', () => {
     await helpers.waitForStablePage(program, { stableMs: 2500 });
     await helpers.reLaunch(program, INDEX_ROUTE);
 
-    const page = await helpers.waitForPage(program, LOGIN_PATH, {
-      timeout: 5000,
-      label: '未登录进首页应被踢到登录页',
-    });
+    const page = await waitForKickToLogin('未登录进首页应被踢到登录页', { timeout: 5000 });
     expect(page.path).toBe(LOGIN_PATH);
     expect(await helpers.findLeftoverAuthKeys(program)).toEqual([]);
   });

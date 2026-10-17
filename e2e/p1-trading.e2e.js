@@ -12,8 +12,10 @@
  *   本文件只覆盖「下单那一刻的用户可见结果」——**任何时间都能跑**。
  *
  * 【数据前提 —— 缺了必然红】
- *   后端必须带行情夹具启动，否则自选页搜索 110020 拿不到结果、P1-03 走不到详情页：
- *     E2E_MARKET_FIXTURE="$PWD/docs/e2e/fixtures/market_snapshot.json" poetry run uvicorn server.app:app --port 8000
+ *   后端必须带行情夹具启动，否则自选页搜索 110020 拿不到结果、P1-03 走不到详情页；
+ *   还必须打开开发端点开关，否则 P1-04 造前置数据那几步 404（后端默认不注册 /test/*）：
+ *     E2E_MARKET_FIXTURE="$PWD/docs/e2e/fixtures/market_snapshot.json" ENABLE_TEST_ENDPOINTS=1 \
+ *       poetry run uvicorn server.app:app --port 8000
  *   ⚠️ 这里有个容易误判的点：后端 `/api/market/search` **只搜场内行情缓存**，
  *      它搜不到 110020。能搜到是因为**前端 store 有兜底**
  *      （src/stores/watchlist.ts:166-184：结果为 0 且关键词是六位数字时再调
@@ -30,7 +32,9 @@
  *      （这推翻了 docs/e2e/03 §1.2 里「toast 文案抓不到」对这两页的适用性。）
  *   2. **赎回页只有一个入口**：自选页持仓项点击（watchlist/index.vue#L585-L593）。
  *      docs/e2e/03 P1-04 步骤里写的「从持仓页/**详情页**进入赎回页」——**详情页没有入口**。
- *   3. **P1-04 的预期文案在任何一层都走不到**（详见下方 describe 的说明，已实测）。
+ *   3. ~~**P1-04 的预期文案在任何一层都走不到**~~ → **2026-10-13 已覆盖**：
+ *      靠夹具回填订单确认日造出「已确认持仓」，UI + 接口两层都跑通了，
+ *      `it.skip` 已删。详见下方 P1-04 段（含「这条钉的是 D-01 当前行为」的说明）。
  *   4. **P1-06 的预期文案 UI 走不到，但接口能走到** → 按 §1.5 的既有先例降为 L3。
  *
  * 【覆盖边界：两处「知道但没覆盖」，别当成漏测】
@@ -45,14 +49,11 @@
  *      初始化期间发出的导航同样会被丢弃。所以这里「先静置 3s 再点」，
  *      失败退避 8s 重点一次，两次都不过才退回 reLaunch 直达（并打 warn）。
  *
- * 【⚠️ 两处「文档与实现不一致」—— 已登记，未改代码】
- *   · P1-04：docs/e2e/03 期望「基金 110020 存在待确认的申购订单，份额确认前无法赎回」。
- *     实测（2026-10-08，本机，curl）：pending 期间赎回 110020 返回的是
- *     **「未持有基金 110020，无法赎回」** —— 因为 `_get_position` 的校验（:784）
- *     **在** pending 申购校验（:788）**之前**，而新账号从未持有 → 位置为 None。
- *     ⚠️ 「走不到」= **本用例路径**走不到（E2E 会话内造不出已确认持仓）；
- *        :788-801 本身**可达**（已确认持有 + 另有 pending 时触发），详见下方 P1-04 段。
- *   · P1-04 步骤里的「详情页进入赎回页」不存在（见上 2）。
+ * 【⚠️ 一处「文档与实现不一致」—— 已登记，未改代码】
+ *   · P1-04 步骤里的「详情页进入赎回页」不存在（见上 2）。赎回页的唯一入口是持仓项。
+ *   · ~~P1-04 的预期文案走不到~~ → 2026-10-13 已用「回填确认日」造出前置状态后覆盖。
+ *     真正的产品问题（拦截粒度是基金而不是份额，会挡住合法赎回）**已登记为 D-01**，
+ *     docs/e2e/00 有专段；本次**只钉行为、不修代码**。
  *
  * 依据行号（逐条核对过）：
  *   申购错误文案渲染：      src/pages/purchase/index.vue#L12
@@ -75,7 +76,10 @@
  *   最低申购额：            :593-L600
  *   申购成功文案：          :684-L685
  *   未持有基金：            :786
- *   pending 申购拦截：      :788-L801（**在持仓校验之后**，见上「不一致」）
+ *   pending 申购拦截：      :788-L803（**在持仓校验之后**；P1-04 造状态后已覆盖）
+ *   确认挑选条件：          :1050-L1057（status='pending' 且 confirm_date <= today）
+ *   E2E 回填端点：          ai-etf/server/api/portfolio.py（/test/backdate-order）
+ *                           → server/services/portfolio_service.py#backdate_pending_order
  */
 
 const helpers = require('./helpers');
@@ -97,6 +101,7 @@ const HOME_PATH = 'pages/index/index';
 const WATCHLIST_PATH = 'pages/watchlist/index';
 const DETAIL_PATH = 'pages/etf-detail/index';
 const PURCHASE_PATH = 'pages/purchase/index';
+const REDEEM_PATH = 'pages/redeem/index';
 const TRADES_PATH = 'pages/trades/index';
 
 const FUND_CODE = '110020'; // 场外白名单，可申购（docs/e2e/03 §1.5 指定）
@@ -451,9 +456,13 @@ beforeAll(async () => {
   if (!(await helpers.ping())) {
     throw new Error(
       '后端连不上 —— 先确认已启动：\n' +
-        '  E2E_MARKET_FIXTURE="$PWD/docs/e2e/fixtures/market_snapshot.json" poetry run uvicorn server.app:app --port 8000'
+        '  E2E_MARKET_FIXTURE="$PWD/docs/e2e/fixtures/market_snapshot.json" ENABLE_TEST_ENDPOINTS=1 \\\n' +
+        '    poetry run uvicorn server.app:app --port 8000'
     );
   }
+
+  // 造数据要用的开发端点是否真的注册了（后端默认不注册，漏了 ENABLE_TEST_ENDPOINTS=1 就是 404）
+  await helpers.assertTestEndpointsEnabled();
 
   account = await helpers.registerAccount();
 });
@@ -528,8 +537,11 @@ describe('P1 交易核心', () => {
     });
 
     // docs/e2e/03 P1-01 预期③「首页会话列表为空」不在此断言：
-    // 那是 AI 对话（P2）的断言，与本路径（交易核心）无关，且 P2 另有专项。
-    it.skip('③ 首页会话列表为空（新用户）—— 属 P2 范围，见 docs/e2e/03 §三', () => {});
+    // 那是 AI 对话（P2）的范畴，与本路径（交易核心）无关 —— 覆盖落在 P2 的 beforeAll：
+    // 同目录 p2-chat.e2e.js 的 `expect(initial.sessions).toHaveLength(0)` /
+    // `initial.messages` / 后端 `getChats().total === 0`（约 366-368 行）。
+    // 2026-10-15：删掉了这里原本那句 `it.skip`。它的函数体是**空的**，永远不会通过，
+    // 只会让 P1 永远显示「1 条跳过」，并让后来的人以为这里有洞（实际没有）。
   });
 
   // ───────────────────── P1-02 持仓 Tab 基线 ─────────────────────
@@ -759,61 +771,221 @@ describe('P1 交易核心', () => {
     });
   });
 
-  // ───────────────────── P1-04 赎回拦截（⚠️ 走不到，见下） ─────────────────────
+  // ───────────────────── P1-04 赎回拦截（2026-10-13 已覆盖） ─────────────────────
   //
-  // ⚠️⚠️ 这条**无法按 docs/e2e/03 的预期执行**。两个独立的障碍：
+  // 【这条以前为什么被 skip】后端校验顺序是
+  //     :784 `position = self._get_position(...)`
+  //     :785-786 `if not position: return "未持有基金 {code}，无法赎回"`
+  //     :788-803 pending 申购校验（**在持仓校验之后**）
+  //   而 E2E 账号当天买、当天赎，从未持有过 → position 恒为 None → 只能命中前一个分支。
+  //   ⚠️ :788-803 **不是死代码**（2026-10-08 已更正过「死代码」这个说法）：它是**可达**的，
+  //      触发条件是**同时**满足「该基金有已确认持仓」+「该基金有 pending 申购」——
+  //      真实使用中很常见（昨天买的已确认，今天又买一笔），也正是 D-01 登记的那条
+  //      （拦截粒度是基金而不是份额，会挡住「持有中用户赎回已有份额」这个合法操作）。
   //
-  //   障碍一（UI）：赎回页的可提交表单只在**有已确认持仓**时渲染
-  //     （redeem/index.vue#L6 `v-else`，配合 #L5 的 `!position` 短路）。
-  //     而 P1-03 之后账号里**没有**任何持仓。→ 和前一条一样，UI 走不到。
+  // 【现在靠什么把状态造出来】持仓只能由「确认一笔买单」产生，而买单落库的 confirm_date
+  //   = 受理日 + `confirm_delay` 个交易日（本仓库所有基金都 ≥ 1）→ **一次会话内确认不了**。
+  //   所以先改库值再确认，两步（顺序不能反 —— confirm-pending 只捞 confirm_date <= today）：
+  //     ① helpers.backdateOrder(userId, FUND_CODE)  打后端开发端点
+  //        `POST /api/portfolio/test/backdate-order`，把该基金**最早那笔** pending 买单的
+  //        confirm_date 改到今天（对应夹具子命令 `e2e_fixture.py backdate-order`）。
+  //     ② POST /api/portfolio/confirm-pending（带用户 JWT）→ 该笔被确认，建仓 + 写流水。
+  //   然后**再买一笔**（新的 pending 买单），才凑齐被拦截的那个组合。
+  //   ⚠️ 那笔「被回填的 pending 买单」由**本用例自己**下（beforeAll ⓪），不靠 P1-03 ——
+  //      否则单跑 `-t P1-04` 会因为没有 pending 订单而红得像产品问题。
   //
-  //   障碍二（更硬，接口层也走不到）：后端校验顺序是
-  //       :784 `position = self._get_position(...)`
-  //       :785-786 `if not position: return "未持有基金 {code}，无法赎回"`
-  //       :788-801 pending 申购校验（**在后面**）
-  //     而本用例是**新账号、先申购再赎回**，从未持有过 110020 → position 恒为 None →
-  //     持仓校验先命中，pending 那条文案**在本路径上**读不到。
+  // 【本用例验证的边界】（skill 02-夹具与断言设计.md §4.5 要求写清）
+  //   验证的是**确认动作完成之后，UI 展示是否正确**；「确认日算得对不对」由后端集成测试
+  //   （tests/integration/server/jobs/test_scheduler_jobs.py，用 time_machine 跨日）覆盖，
+  //   本用例不重复。
   //
-  //     ⚠️ 2026-10-08 更正：它**不是死代码**。此前这里写「死代码路径」是**说过头了** ——
-  //        那是把「本用例的路径走不到」当成了「全局不可达」。
-  //        :788-801 是**可达**的，触发条件是**同时**满足
-  //        「该基金有已确认持仓」+「该基金有 pending 申购」：
-  //          · 已确认持仓：§二.1 已论证**会话内产生不了**（申购单当天确认不了）
-  //            → 所以**本 E2E 覆盖不到**，而不是代码走不到。
-  //          · 在真实使用中这个组合很常见（昨天买的已确认，今天又买一笔）。
-  //        ⇒ **要真覆盖它得回填状态**（夹具把订单 confirm_date 改到过去再调 confirm-pending，
-  //          即 docs/e2e/03 §二.1 末尾说的 `backdate-order`），不是「绕不开」。
-  //        ⇒ 对产品的含义也不一样了：这条拦截会**挡住「持有中用户赎回已有份额」这个合法操作**
-  //          （见文件头「文档与实现不一致」）。
-  //
-  //   ✅ 已实测确认（2026-10-08，本机 curl，临时账号验完即删）：
-  //      P1-03 下单 1000 后立刻 `POST /api/portfolio/apply-redeem {fund_code:"110020",quantity:10}`
-  //      → **400 `{"detail":"未持有基金 110020，无法赎回"}`**
-  //      （不是文档期望的「存在待确认的申购订单」）
-  //
-  //   ⇒ 处置：**登记为「无法覆盖」，不修改代码、不改文档口径**，交给产品/文档确认
-  //      「这条拦截到底还成不成立、要不要改校验顺序」。想真跑起来需要夹具回填状态
-  //      （把订单 confirm_date 改到过去再调 confirm-pending，即 docs/e2e/03 §二.1 末尾
-  //      说的 `backdate-order` 子命令）—— 那是「为测 UI 而构造状态」，
-  //      且验证的只是「确认之后的展示」，不在本次范围。
-  describe('P1-04 赎回拦截（⚠️ 无法按文档预期执行）', () => {
-    it.skip(
-      '🔴 从赎回页提交 → 提示「基金 110020 存在待确认的申购订单，份额确认前无法赎回」' +
-        ' —— 走不到：赎回表单需已确认持仓；且后端持仓校验排在 pending 校验之前',
-      () => {}
-    );
+  // 【钉的是 D-01 的当前（有缺陷的）行为】
+  //   下面 ③④ 两条断言的是**当前行为**：持有中用户赎回已有份额会被整只基金挡住。
+  //   docs/e2e/00 D-01 建议的修法是按份额分账（可赎份额 = 持仓份额 − 在途申购份额，
+  //   只在可赎份额为 0 时才拦）。⇒ **D-01 修好之后这两条会红 —— 那是预期信号**，
+  //   回来更新本段 + docs/e2e/03 P1-04 + docs/e2e/00 D-01。
+  describe('P1-04 赎回拦截（回填状态后覆盖；钉的是 D-01 当前行为）', () => {
+    let seedBuy = null; // ⓪ 本用例自带的那笔 pending 买单（解耦 P1-03）
+    let redeemNoPosition = null; // ① 造状态前（无持仓 + 有 pending）打的那一次
+    let backdated = null; // ② backdate-order 的返回
+    let confirmResult = null; // ② confirm-pending 的返回
+    let positionAfterConfirm = null; // ② 确认后该基金的持仓行
+    let buyAgain = null; // ③ 再买一笔（保持一笔 pending）
+    let accountBeforeRedeem = null; // ④ 赎回前账户真值
+    let redeemBlocked = null; // ④ 造状态后打的那一次
+    let accountAfterRedeem = null; // ④ 赎回后账户真值
 
-    it('（替代断言）pending 期间赎回 110020，实际命中的是持仓校验文案', async () => {
-      // 这条**不是**文档里那条用例，而是把「障碍二」变成可执行的证据：
-      // 只要它返回的是「未持有基金」，就说明 pending 分支仍被持仓校验挡在后面。
-      // 反过来若某天这里变成了「存在待确认的申购订单」，说明校验顺序被改了 ——
-      // 那时这条会红，正好提示回去更新 docs/e2e/03 P1-04。
-      const res = await requestJson('POST', '/api/portfolio/apply-redeem', {
+    beforeAll(async () => {
+      // ⓪ **本用例自带前置数据**：先下一笔 pending 买单。
+      //    为什么不直接用 P1-03 下的那笔：那是**跨 describe 的隐式依赖** ——
+      //    单跑 `-t P1-04` 时 P1-03 的 beforeAll 不会执行，回填会因为「没有 pending 订单」
+      //    拿到 400，红得像产品问题（2026-10-13 实测踩到）。自带一笔就与 P1-03 解耦。
+      //    走开发端点而不是 UI：本用例的 UI 部分只留「被判定的那一跳」，
+      //    「下单 → pending → 冻结资金」已经由 P1-03 从 UI 覆盖过。
+      seedBuy = await requestJson('POST', '/api/portfolio/test/apply-purchase', {
+        headers: { 'X-User-Id': account.userId },
+        body: { fund_code: FUND_CODE, amount: 1000 },
+      });
+
+      // ① 造状态之前：账号有 pending 买单、**没有**任何持仓
+      redeemNoPosition = await requestJson('POST', '/api/portfolio/apply-redeem', {
         token: account.token,
         body: { fund_code: FUND_CODE, quantity: 10 },
       });
-      expect(res.status).toBe(400);
-      expect(res.data.detail).toBe(`未持有基金 ${FUND_CODE}，无法赎回`);
+
+      // ② 回填确认日 → 触发确认 → 得到「已确认持仓」
+      backdated = await helpers.backdateOrder(account.userId, FUND_CODE);
+      confirmResult = await requestJson('POST', '/api/portfolio/confirm-pending', {
+        token: account.token,
+      });
+      const posRes = await requestJson('GET', '/api/portfolio/positions?include_quote=false', {
+        token: account.token,
+      });
+      positionAfterConfirm =
+        ((posRes.data && posRes.data.items) || []).find((p) => p.fund_code === FUND_CODE) || null;
+
+      // ③ 再买一笔，让该基金重新有一笔 pending 买单（这才是被拦截的组合）
+      //    ⚠️ 这笔走开发端点、不走 UI：申购本身不是本用例的考点（P1-03 已从 UI 覆盖过
+      //       「下单 → pending → 冻结资金」），本用例的 UI 部分只留「被判定的那一跳」。
+      buyAgain = await requestJson('POST', '/api/portfolio/test/apply-purchase', {
+        headers: { 'X-User-Id': account.userId },
+        body: { fund_code: FUND_CODE, amount: 100 },
+      });
+
+      // ④ 同一请求、两种状态：造出持仓之后命中的才是拦截那一条
+      accountBeforeRedeem = await accountOf(account.token);
+      redeemBlocked = await requestJson('POST', '/api/portfolio/apply-redeem', {
+        token: account.token,
+        body: { fund_code: FUND_CODE, quantity: 10 },
+      });
+      accountAfterRedeem = await accountOf(account.token);
     });
+
+    it('① 造状态之前：赎回 110020 命中的是持仓校验（这就是原先走不到的原因）', async () => {
+      // 后端 portfolio_service.py#L785-L786。这条留着有两个用处：
+      //   a) 反证「上面的回填不是摆设」：同样是赎回 10 份，状态一造出来文案就变了（见 ③）；
+      //   b) 钉住**校验顺序** —— D-01 的根因之一就是「持仓校验排在 pending 校验之前」。
+      expect(seedBuy.status).toBe(200); // ⓪ 的前置买单下成功了
+      expect(redeemNoPosition.status).toBe(400);
+      expect(redeemNoPosition.data.detail).toBe(`未持有基金 ${FUND_CODE}，无法赎回`);
+    });
+
+    it('② 回填确认日 + 触发确认 → 该基金出现已确认持仓', () => {
+      // 回填本身：只改 confirm_date，目标日 = 北京时间当天（不传 --date 时后端的默认值）
+      expect(backdated.success).toBe(true);
+      expect(backdated.data.order_id).toBeTruthy();
+      expect(backdated.data.new_confirm_date).not.toBe(backdated.data.old_confirm_date);
+
+      // 确认动作：只捞 confirm_date <= today 的 pending（:1057）
+      // ⚠️ `requestJson` 返回的是 **HTTP 信封** `{status: <状态码>, data: <响应体>}`，
+      //    后端自己的 `{"status":"ok","processed":n,"message":...}` 在 `.data` 里。
+      expect(confirmResult.status).toBe(200);
+      const confirm = confirmResult.data || {};
+      if (confirm.processed !== 1 || !String(confirm.message).includes('成功 1')) {
+        throw new Error(
+          `确认没有成功：${JSON.stringify(confirmResult)}\n` +
+            '  ↳ 「失败 1」最常见的原因是**后端没带 E2E_MARKET_FIXTURE 启动**：\n' +
+            '     _confirm_one_order 取不到 110020 的确认日净值，会把订单判成 rejected。\n' +
+            '     启动命令见本文件头「数据前提」。'
+        );
+      }
+
+      expect(positionAfterConfirm).not.toBeNull();
+      expect(Number(positionAfterConfirm.quantity)).toBeGreaterThan(0);
+    });
+
+    it('③ 有确认持仓 + 有 pending 申购时，接口返回 400 且 detail 精确等于拦截文案', async () => {
+      // 后端 portfolio_service.py#L798-L803。这条**钉的是 D-01 的当前行为**：
+      // 手里明明有份额，只因为同一基金另有一笔在途申购，整笔赎回就被拒。
+      expect(buyAgain.status).toBe(200);
+      expect(redeemBlocked.status).toBe(400);
+      expect(redeemBlocked.data.detail).toBe(
+        `基金 ${FUND_CODE} 存在待确认的申购订单，份额确认前无法赎回`
+      );
+    });
+
+    it('④ 交叉断言：被拒的赎回没有留下任何副作用（份额与冻结资金都没动）', () => {
+      expect(accountAfterRedeem.position_count).toBe(accountBeforeRedeem.position_count);
+      expect(accountAfterRedeem.frozen_cash).toBeCloseTo(accountBeforeRedeem.frozen_cash, 2);
+      expect(accountAfterRedeem.cash).toBeCloseTo(accountBeforeRedeem.cash, 2);
+    });
+
+    it('⑤ UI：从持仓页点进赎回页提交，页面提示的就是拦截文案', async () => {
+      // UI 侧依据：持仓项可点（watchlist/index.vue#L585-L593）→ 赎回页；
+      //           有 position 才渲染表单（redeem/index.vue#L5-L6），
+      //           `.message` 渲染错误文案（#L14），且 request.ts#L69-L77 原文写入、不改写。
+      const redeemPage = await openRedeemFromHoldings(FUND_CODE);
+
+      // ⚠️ **必须等表单渲染，不能跳过来就查**：赎回页的 `onLoad` 只负责发请求，
+      //    取持仓是异步的（redeem/index.vue 的 `loadPosition`），期间一直是 `loading`
+      //    分支的「正在读取持仓...」，`#sell-quantity` **还不存在**。
+      //    （2026-10-13 第一轮实测就是这么红的：立刻 `$('#sell-quantity')` 拿到 null，
+      //     看起来像「没有持仓」，其实只是没等。）拿到 `.state` 的文案时把原文带出去，
+      //     免得下次还要猜是「还在读」还是「真的没持仓」。
+      const input = await waitFor(
+        async () => {
+          const el = await redeemPage.$('#sell-quantity');
+          if (el) return el;
+          const stateText = String((await textOf(redeemPage, '.state')) || '').trim();
+          if (stateText && stateText !== '正在读取持仓...') {
+            throw new Error(`赎回页没渲染出可提交表单，页面自己给的文案是：「${stateText}」`);
+          }
+          return null;
+        },
+        { timeout: 15000, label: '赎回页渲染出可提交表单（= 确实有已确认持仓）' }
+      );
+      await input.input('10');
+      await sleep(300);
+      const submit = await redeemPage.$('#sell-submit');
+      await submit.tap();
+
+      const text = await waitFor(
+        async () => {
+          const t = await textOf(redeemPage, '.message');
+          return t && t.trim() ? t.trim() : null;
+        },
+        { timeout: 15000, label: '赎回页出现提示文案' }
+      );
+      expect(text).toBe(`基金 ${FUND_CODE} 存在待确认的申购订单，份额确认前无法赎回`);
+      // 失败时不该渲染成功结果块（redeem/index.vue#L20 只有 order 非空才渲染）
+      expect(await redeemPage.$('.order-result')).toBeNull();
+    });
+
+    /**
+     * 进持仓 Tab → 点该基金的持仓项 → 落在赎回页。
+     *
+     * ⚠️ 这一跳是 `uni.navigateTo`，可能被丢掉（README §5.3 登记的间歇现象），
+     * 所以失败就再多点一次：重进持仓 Tab（gotoPage 自带静置+重试）→ 重新找项 → 再点。
+     * 两次都不过才抛，抛的是最后一次的错误（里面带着当时实际停在哪个路由）。
+     */
+    async function openRedeemFromHoldings(fundCode) {
+      let lastErr = null;
+      for (let attempt = 1; attempt <= 2; attempt += 1) {
+        await seedSession();
+        await openPositionTab();
+        const item = await waitFor(
+          async () => {
+            const p = await program.currentPage();
+            if (p.path !== WATCHLIST_PATH) return null;
+            for (const el of (await p.$$('.position-item')) || []) {
+              const t = (await el.text()) || '';
+              if (t.includes(fundCode)) return el;
+            }
+            return null;
+          },
+          { timeout: 15000, label: `持仓项出现（${fundCode}）` }
+        );
+        await item.tap();
+        try {
+          return await waitForPage(program, REDEEM_PATH, { timeout: 10000, label: '进入赎回页' });
+        } catch (e) {
+          lastErr = e;
+          console.warn(
+            `[P1-04] 点持仓项没进赎回页（第 ${attempt} 次）—— 已知的「导航被丢掉」现象，重试一次。`
+          );
+        }
+      }
+      throw lastErr;
+    }
   });
 });

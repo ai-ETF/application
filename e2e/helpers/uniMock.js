@@ -102,12 +102,22 @@ async function withMockedUni(program, mocks, fn) {
  * `watchlist/index.vue#L548`）。应用若写的是 `await uni.showModal(...)`
  * （如 `settings/index.vue#L202`），这个 mock **不管用** —— 见上方第 5 条，
  * 那种情况请改用 `stubNativeModal` / `withNativeModal`。
+ *
+ * ⚠️ 用错**不会报错**：给 `await` 写法用了本桩 → 应用拿到 `undefined`，看着像「点了没反应」；
+ *    反过来给回调写法用了 `withNativeModal` → 一次都记不到（`readNativeModalCalls` 回 `[]`）。
+ *    代价：本桩拿不到弹窗文案（结果式 mock 只能塞固定返回值）。见 `README.md` §6.8。
  */
 function confirmNextModal(program, { confirm = true } = {}) {
   return mockUni(program, 'showModal', {
     confirm,
     cancel: !confirm,
-    errMsg: confirm ? 'showModal:ok' : 'showModal:fail cancel',
+    // ⚠️ errMsg 里**不能**带 ':fail'：runtime 的桩按它决定调 fail 还是 success
+    //    （`@dcloudio/uni-mp-weixin/lib/automator.js` 的 mockUniMethod：
+    //     `result.errMsg.indexOf(':fail') !== -1 ? params.fail(...) : params.success(...)`），
+    //    而真机上「点取消」走的是 success({confirm:false})。带 ':fail' 的话，
+    //    只有 success 回调的调用点**一次都不会被调到**，取消支就成了「什么都没发生」的假绿。
+    //    2026-10-12 反向验证时发现：P3-04（取消支）原写法下，往 success 里插强制 confirm 也不生效。
+    errMsg: 'showModal:ok',
   });
 }
 
@@ -130,6 +140,14 @@ function confirmNextModal(program, { confirm = true } = {}) {
  * ⚠️ 会把这次调用的参数记在 `wx.__e2eModalCalls` 里，供 `readNativeModalCalls` 读 ——
  *    这是本环境**唯一**能拿到 showModal 文案的办法（函数式 mock 用不了，
  *    真实的原生弹窗又不在页面上）。用完记得 `restoreNativeModal`。
+ *
+ * ⚠️ 与 `confirmNextModal` 是**互补**关系，别用错（2026-10-11 实跑确认）：
+ *    本函数只拦得到 **await 写法**的调用点（settings/index.vue#L204）。
+ *    **回调写法**的调用点（`success: (res) => ...`，如 watchlist/index.vue#L567）
+ *    换掉 `wx.showModal` 之后**一次都记不到**（`readNativeModalCalls` 回 `[]`），
+ *    那种情况要改用 `confirmNextModal`（代价是拿不到弹窗文案）。
+ *    判断方法就看应用那一行是 `await uni.showModal(...)` 还是 `success:` 回调。
+ *    完整的判据表 + 「怎么发现自己用错了」见 `application/e2e/README.md` §6.8。
  */
 async function stubNativeModal(program, { confirm = true, content } = {}) {
   return program.evaluate((opts) => {

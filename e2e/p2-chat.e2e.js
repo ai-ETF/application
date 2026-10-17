@@ -69,7 +69,12 @@
  * ───────────────────────── 用例之间有顺序依赖（跑法要求）─────────────────────────
  *
  * P2-01 建会话 C1 → P2-02 往 C1 里续聊 → P2-03 再建 C2 → P2-04 改名（C2）→
+ * P2-05（取消支）删 C2 弹确认框时点「取消」，验证什么也没发生 →
  * P2-05 删 C2（同时验「删的是当前会话 → 消息清空」）→ P2-06 剩 C1，验证回填。
+ *
+ * 「取消支」那条是 2026-10-11 补的（全仓 3 个 showModal 调用点各有一条，另两条在
+ * p4-auth 的 P4-03（取消支）和 p3 的 P3-04（取消支））。它不改任何服务端状态，
+ * 只夹在中间做一次「点取消不该删」的对证。
  *
  * 所以**必须整文件连着跑**：`npm run test:e2e -- p2-chat`。
  * 单跑 `-t 'P2-05'` 会因为「没有会话可删」而红 —— 那是缺前置，不是产品缺陷
@@ -605,6 +610,64 @@ describe('P2 AI 对话核心', () => {
     const afterReload = await readChat();
     expect(afterReload.sessions.find((s) => s.id === state.chat2).title).toBe(NEW_TITLE);
     expect(await drawerTitleAt(0)).toBe(NEW_TITLE);
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // P2-05（取消支）删会话点「取消」→ 不许删
+  //
+  // 与 settings 那条「P4-03（取消支）」是同一类误触防呆，但**调用点不同、写法也不同**：
+  //   · SessionDrawer.vue#L189-L197 是**回调写法**（`success: async (res) => { if (res.confirm) ... }`）
+  //   · settings/index.vue#L204 是 **await 写法**（`if (!result.confirm) return`）
+  // 所以两条都得单独验 —— 「UI 上都是个确认框，各人各写各的实现」正是这类防呆
+  // 最容易漏掉其中一处的地方。全仓只有 3 处 showModal，这是第 2 处（第 3 处在 P3-04）。
+  //
+  // ⚠️ 位置很关键：必须夹在 P2-04 和 P2-05 之间。P2-05 要删的正是下面这条 chat2；
+  //    「先证明取消删不掉、紧接着点确定就删掉了」这两条连着读，比单看一条有说服力。
+  it('P2-05（取消支）点「取消」→ 会话还在：本地 2 条、后端 2 条', async () => {
+    requireChat({ chatId: state.chat2 }, 'P2-05(取消)');
+
+    const before = await helpers.getChats(account.token);
+    expect(before.total).toBe(2);
+
+    // 与 P2-05 同一起点：当前会话 = chat2（P2-04 结尾重进过首页，onMounted 把最近一条拉成当前）
+    const current = await readChat();
+    expect(current.currentChatId).toBe(state.chat2);
+    expect(current.sessions.map((s) => s.id)).toEqual([state.chat2, state.chat1]);
+
+    let modalCalls = [];
+    await helpers.withNativeModal(program, { confirm: false }, async () => {
+      await openDrawer();
+      await tapDrawerAction(0, '.session-action-btn--danger');
+      modalCalls = await helpers.readNativeModalCalls(program);
+    });
+
+    // 对照组（不能省）：弹窗确实弹了。没有它，「没删」和「按钮没点到」分不出来。
+    expect(modalCalls).toHaveLength(1);
+    expect(modalCalls[0].title).toBe('删除会话');
+    expect(modalCalls[0].content).toBe('确定要删除此会话吗？');
+
+    // 等它去「犯错」：真删的话列表会立刻变成 1 条（P2-05 那条就是点完立刻等这个变化）
+    await helpers.sleep(2500);
+
+    // ① 本地列表没变 —— UI + store 两路，与 P2-05 的观测面保持一致
+    expect(await drawerSessions()).toHaveLength(2);
+    const afterCancel = await readChat();
+    expect(afterCancel.sessions.map((s) => s.id)).toEqual([state.chat2, state.chat1]);
+
+    // ② 顺带验没被误伤：chat2 还是当前会话、消息还在。
+    //    （P2-05 点确定之后这两样都会被清掉，依据 chat.ts#L170-L173）
+    expect(afterCancel.currentChatId).toBe(state.chat2);
+    expect(afterCancel.messages.length).toBeGreaterThan(0);
+
+    // ③ 交叉断言（关键）：后端还是 2 条、两条都在 —— 证明真的没发 DELETE
+    const after = await helpers.getChats(account.token);
+    expect(after.total).toBe(2);
+    expect(after.chats.map((c) => c.id).sort()).toEqual([state.chat1, state.chat2].sort());
+
+    // 收尾：重进首页（和 P2-04 的收尾一样）。
+    // 既把抽屉状态复位（不确定取消后抽屉是开是闭，别把这个不确定性传给下一条），
+    // 也让 P2-05 的前置与本条插入之前**完全一致**（最近一条仍是 chat2 → 仍是当前会话）。
+    await gotoIndex({ settle: 2000 });
   });
 
   // ─────────────────────────────────────────────────────────────

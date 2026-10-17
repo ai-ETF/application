@@ -57,12 +57,20 @@
  *      而 mockUniMethod 的函数式 mock 又调不通 —— 本文件改用
  *      「`program.evaluate` 里替换 `wx.showToast`」的探针，**实测能截到文案**
  *      （见 `installToastSpy`，P3-03③ 靠它拿到「已添加自选」）。
- *   2. **左滑手势做不到**。`Element.touchstart/touchmove/touchend` 三个 RPC 都能发出、
- *      也都在 4s 内回包，但 `.etf-item` 始终是 `transform:translateX(0px)` ——
- *      事件发了、Vue 的 handleSwipeMove 没算出位移。所以：
- *        · 「移除」这一半由 ⑥ 覆盖（直接点删除区 + 后端交叉断言）
- *        · 「左滑」这一半记为**未覆盖**，见 `⑥-bis` 的 skip 说明
- *      整段手势都包在超时里，跑不动也不会把用例拖到 jest 120s 超时。
+ *   2. **左滑手势可以做 —— 此前「做不到」的结论是错的**（2026-10-13 推翻并已改为真用例，
+ *      由 ⑥ 覆盖，含「短滑不打开」的反例）。
+ *
+ *      错在哪：当年传的是 `el.touchstart({ x, y })`，而官方这三个 RPC 的参数是
+ *        `{ touches: [触摸点...], changedTouches: [触摸点...] }` —— **没有 `x`/`y` 字段**。
+ *      传 `{x, y}` 时合成事件的 `touches` 是**空数组** → `watchlist/index.vue:467`
+ *      第一行 `const touch = event.touches[0]; if (!touch) return;` 直接退出 →
+ *      位移恒为 0 → style 恒为 `translateX(0px)`。
+ *      现象（「RPC 都发了、也都回包了，但 style 不动」）与当年观察**一字不差**，
+ *      只是把「参数传错了」误判成了「这台机器能力不够」。
+ *
+ *      ⭐ 教训：**「工具做不到」这个结论，在写进文档之前要先确认一遍参数形状**。
+ *      错误的能力结论比没有结论更糟 —— 它会让后来的人照着绕路。
+ *      细节与探针证据见 `swipeRowLeft()` 的注释。
  *
  * 【⚠️ 一处「文档与实现不一致」—— 已登记，未改代码】
  *   docs/e2e/03 的 P3-05③ 写「未登录切到持仓 tab → **立即跳转**登录页」。
@@ -147,6 +155,83 @@ function seedSession() {
  */
 async function openWatchlist({ force = true } = {}) {
   return gotoPage(program, WATCHLIST_ROUTE, WATCHLIST_PATH, { force });
+}
+
+/**
+ * 动作区宽度（px）。用**与页面同一个公式**算，不硬编码 —— 换模拟器就不一样了。
+ * 页面侧：`const swipeActionWidthPx = uni.getSystemInfoSync().windowWidth * SWIPE_ACTION_WIDTH_RPX / 750`
+ * （watchlist/index.vue:327-328，SWIPE_ACTION_WIDTH_RPX = 176）
+ */
+async function swipeActionWidthPx() {
+  const info = await program.systemInfo();
+  return (info.windowWidth * 176) / 750;
+}
+
+/** 读第一条卡片的 style —— 「滑开没有」的唯一判据（模板 :style 绑的就是 translateX） */
+async function followItemStyle(page) {
+  const rows = await page.$$('.etf-item');
+  if (!rows.length) return null;
+  return await rows[0].attribute('style');
+}
+
+/**
+ * 模拟一次真实左滑手势：按住 → 拖两步 → 松手。
+ *
+ * ⚠️⚠️ **参数形状是这个文件里最贵的一个坑**（2026-10-13 定位，此前一直是错的结论）：
+ *   官方 `Element.touchstart/touchmove/touchend` 的参数是
+ *     `{ touches: [触摸点...], changedTouches: [触摸点...] }`
+ *   —— **没有 `x` / `y` 这两个字段**。
+ *
+ *   2026-10-06 传的是 `el.touchstart({ x, y })`，于是合成事件的 `touches` 是**空数组**
+ *   → `watchlist/index.vue:467` 第一行 `const touch = event.touches[0]; if (!touch) return;`
+ *   直接退出 → 位移恒为 0 → style 恒为 `transform:translateX(0px)`。
+ *   **当时把这个现象误判成「本机做不到左滑」，其实只是参数传错了。**
+ *
+ *   探针实测（2026-10-13，正确形状下四种写法：只 pageX/pageY、只 clientX/clientY、
+ *   两个都给、松手时 touches 空或非空）**全部滑开**；且 20px 短滑不打开、45px 中滑打开
+ *   —— 说明位移**真的由我们给的坐标决定**，不是「碰一下就满格」。
+ *   开发者工具会把缺的坐标字段补齐，所以 clientX/pageX 给哪个都行（这里两个都给，最保险）。
+ *
+ * 阈值（都取自前端源码，不是猜的）：
+ *   · 判定「开始拖动」要 |deltaX| ≥ 8px            watchlist/index.vue:488
+ *   · 松手时位移 ≤ -动作区宽 × 35% 才锁定打开      watchlist/index.vue:501
+ *
+ * @param {object} row     `#wl-follow-item` 元素
+ * @param {number} deltaPx 向左滑的总距离（正数）；滑够会被夹在 -动作区宽度
+ * @returns {Promise<string>} 四个 RPC 的执行日志；**失败也返回、不抛**
+ *   —— 这样「滑不开」时能一眼分清是「手势根本没发出」还是「发出了但没生效」
+ */
+async function swipeRowLeft(row, deltaPx) {
+  const size = await row.size();
+  const offset = await row.offset();
+  const y = Math.round(offset.top + size.height / 2);
+  const startX = Math.round(offset.left + size.width - 20); // 从行内靠右起手，别压在边缘上
+  const endX = startX - deltaPx;
+  const midX = Math.round((startX + endX) / 2);
+
+  const touchAt = (x) => ({ identifier: 1, clientX: x, clientY: y, pageX: x, pageY: y });
+  const down = touchAt(startX);
+  const mid = touchAt(midX);
+  const up = touchAt(endX);
+
+  const log = [];
+  const step = async (name, fn) => {
+    try {
+      await withTimeout(fn(), 6000, name);
+      log.push(`${name}:ok`);
+    } catch (e) {
+      log.push(`${name}:抛错(${e.message})`);
+    }
+  };
+
+  await step('touchstart', () => row.touchstart({ touches: [down], changedTouches: [down] }));
+  await sleep(120);
+  await step('touchmove#1', () => row.touchmove({ touches: [mid], changedTouches: [mid] }));
+  await sleep(120);
+  await step('touchmove#2', () => row.touchmove({ touches: [up], changedTouches: [up] }));
+  await sleep(120);
+  await step('touchend', () => row.touchend({ touches: [], changedTouches: [up] }));
+  return log.join(' ');
 }
 
 /** 在自选页搜索框输入关键词，等防抖 400ms + 请求往返。 */
@@ -524,45 +609,37 @@ describe('P3 行情 + 自选', () => {
       expect(found).toContain(ETF_CODE);
     });
 
-    it('⑥ 左滑 → 移除 → 后端列表不再含该 code', async () => {
-      // ⚠️ 左滑是**未能确认可用**的一步（见文件头「能力边界」2）：
-      // touchstart/touchmove/touchend 三个 RPC 实测会挂起不回包。
-      // 所以整段手势包在超时里，失败不致命，退回直接点删除区。
+    it('⑥ 左滑 → 滑开 → 点删除 → 后端列表不再含该 code', async () => {
       const listPage = await program.currentPage();
       const item = await listPage.$('#wl-follow-item');
       expect(item).not.toBeNull();
 
-      const size = await item.size();
-      const offset = await item.offset();
-      const y = offset.top + size.height / 2;
-      const startX = offset.left + size.width - 20;
-      const endX = startX - 120; // 动作区宽 = windowWidth*176/750，阈值 35%（#L327-328, #L501）
+      const actionWidth = await swipeActionWidthPx();
 
-      let swipeOk = true;
-      try {
-        await withTimeout(item.touchstart({ x: startX, y }), 4000, 'touchstart');
-        await withTimeout(item.touchmove({ x: startX - 60, y }), 4000, 'touchmove');
-        await withTimeout(item.touchmove({ x: endX, y }), 4000, 'touchmove');
-        await withTimeout(item.touchend({ x: endX, y }), 4000, 'touchend');
-      } catch (e) {
-        swipeOk = false;
-        console.warn(`[P3-03] 左滑手势未能完成（${e.message}）→ 退回直接点删除区，本条按「需确认」记`);
-      }
+      // ── ① 反例：短滑**不该**打开 ────────────────────────────────────────
+      // 这一步是本条自带的反向验证：证明②那个「滑开」判据真的能区分开与不开，
+      // 而不是「随便碰一下就绿」。20px < 动作区宽 35%（≈32px）→ 松手应弹回 0。
+      await swipeRowLeft(item, 20);
       await sleep(500);
+      expect(await followItemStyle(listPage)).toContain('translateX(0px)');
 
-      // ⚠️ 「左滑到底有没有上手」要有独立证据 —— 不能只看「后面删除成功了」，
-      // 因为删除区即使被卡片盖着，`Element.tap` 是按 elementId 派发的，
-      // 照样能点中它。那样删除会成功、但**手势其实没生效**，等于把没覆盖的步骤记成覆盖。
+      // ── ② 正例：滑够距离 → 卡片停在动作区宽度上 ──────────────────────
+      // ⚠️ 「左滑有没有真的上手」必须有独立证据 —— 不能只看后面「删除成功了」：
+      // 删除区即使被卡片盖着，`Element.tap` 是按 elementId 派发的，照样点得中。
+      // 那样删除会成功、但手势其实没生效，等于把没做的步骤记成做了。
       // 滑动到位时模板会给 `.etf-item` 打上 `translateX(-Npx)`（watchlist/index.vue:92），
       // 所以直接读这个 style 当证据。
-      // 2026-10-06 实测结论：**手机势没生效**（style 恒为 `translateX(0px)`），
-      // 所以本条的「移除」是靠直接点删除区完成的，手势本身见下方的 skip 用例。
-      const innerItems = await listPage.$$('.etf-item');
-      const innerStyle = innerItems.length ? await innerItems[0].attribute('style') : null;
-      const latched = typeof innerStyle === 'string' && /translateX\(-\d/.test(innerStyle);
-      console.log(`[P3-03] 左滑是否到位：${latched}（.etf-item style=${innerStyle}）`);
+      const log = await swipeRowLeft(item, 120);
+      await sleep(500);
+      const style = (await followItemStyle(listPage)) || '';
+      // 把 RPC 日志拼进断言值：红了要能一眼分清是「手势没发出」还是「发出了没生效」
+      expect(`${style} ｜ rpc: ${log}`).toMatch(/translateX\(-[\d.]+px\)/);
 
-      // 删除区在卡片后方；本环境下直接按 elementId 派发也能点中
+      const moved = parseFloat(/translateX\((-?[\d.]+)px\)/.exec(style)[1]);
+      expect(moved).toBeCloseTo(-actionWidth, 1); // 夹在动作区宽度上（watchlist/index.vue:493）
+
+      // ── ③ 点被露出来的删除区 ─────────────────────────────────────────
+      // 走到这里卡片是真的滑开了，删除区不再需要「隔着卡片按 elementId 派发」。
       const deleteBtn = await listPage.$('.swipe-delete');
       expect(deleteBtn).not.toBeNull();
 
@@ -576,26 +653,6 @@ describe('P3 行情 + 自选', () => {
         },
         { timeout: 10000, label: '后端自选列表已移除' }
       );
-
-      if (!swipeOk) {
-        console.warn('[P3-03] ⚠️ 本条的移除**不是靠真实左滑**触发的，报告里须记为「需确认」');
-      }
-    });
-
-    // ⚠️ 跳过不是通过。P3-03⑤ 的「左滑」这半步**未覆盖**，报告里必须如实写。
-    it.skip('⑥-bis 真实左滑手势（合成 touchstart/touchmove/touchend）—— 未覆盖', () => {
-      /* 2026-10-06 实测：`Element.touchstart/touchmove/touchend` 三个 RPC 都能发出、
-         也都在 4s 内回了包（日志里 1 次 touchstart + 2 次 touchmove + 1 次 touchend），
-         但页面上的 `.etf-item` 始终是 `transform:translateX(0px)` ——
-         也就是说**事件发出去了、Vue 里的 handleSwipeMove 没算出位移**，
-         手势没真正「上手」。可能原因：合成事件的 `touches[0].clientX` 没带上，
-         或坐标与元素对不上（watchlist/index.vue#L468-L503 依赖 event.touches）。
-
-         结论：本机**无法用当前手法驱动左滑**。要覆盖这一步，得换一条路
-         （例如查 uni-automator 是否支持带 touches 的 touch 事件，或改成对
-         `handleSwipe*` 做组件级调用 —— 后者属于「绕开真实用户操作」，价值存疑）。
-         在那之前，P3-03⑤ 中「左滑」这一步记为未覆盖；
-         「移除」这一半已由 ⑥ 用「直接点删除区」覆盖到。 */
     });
 
     it('⑦ 交换验证：重新进入自选页后它不再出现（证明是服务端删除，不只是本地过滤）', async () => {
@@ -668,6 +725,103 @@ describe('P3 行情 + 自选', () => {
       const res = await requestJson('GET', '/api/watchlist/list', { token: account.token });
       expect(res.status).toBe(200);
       expect(res.data.items || []).toEqual([]);
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // P3-04（取消支）清空自选点「取消」→ 不许清
+  //
+  // 全仓 3 处 `showModal` 的最后一处（另两处：p2-chat 的 P2-05（取消支）删会话、
+  // p4-auth 的 P4-03（取消支）登出）。三处各自实现、写法还不一样，所以三处都要各验一次：
+  // 这里 watchlist/index.vue#L571-L576 是回调写法（`if (res.confirm) ...`）。
+  //
+  // ⚠️ 必须**另开一个 describe**，不能塞进上面那组：那组是串起来的，
+  //    ① 已经把服务端清空了 —— 在它之后再点「取消」，验的是「空列表没被清空」，
+  //    一句永远为真的废话。这条要的恰恰是「有东西、点取消、东西还在」。
+  describe('P3-04（取消支）清空自选点「取消」', () => {
+    let page;
+    const CODES = [ETF_CODE, '510500'];
+
+    beforeAll(async () => {
+      await seedSession();
+
+      // 前置：造服务端状态（2 条自选）—— 与上一组同一套做法
+      for (const code of CODES) {
+        const res = await requestJson('POST', '/api/watchlist/add', {
+          token: account.token,
+          body: { fund_code: code },
+        });
+        if (res.status !== 200) {
+          throw new Error(
+            `前置造数失败 POST /api/watchlist/add ${code} → HTTP ${res.status}: ${JSON.stringify(res.data)}`
+          );
+        }
+      }
+
+      // toast 探针要在这里重装一次：它虽然在本文件 P3-03 里装过一次，
+      // 但那条只要没跑（比如单跑 `-t 'P3-04（取消支）'`），探针就是空的，
+      // 「没弹错 toast」会变成假绿。返回值顺带当对照组用（true = wx.showToast 确实被换了）。
+      const spyOk = await installToastSpy();
+      expect(spyOk).toBe(true);
+
+      page = await openWatchlist();
+      await waitFor(async () => (await page.$$('#wl-follow-item')).length >= 2, {
+        timeout: 10000,
+        label: '自选列表出现 2 项',
+      });
+    });
+
+    // 收尾：恢复成「空自选」，跟上一组结束时一致 —— 不留状态给后面的用例
+    // （严格说 P3-05 不看自选内容，但账号级状态能清就清，少一个将来被误读的变量）
+    afterAll(async () => {
+      try {
+        await requestJson('DELETE', '/api/watchlist/clear', { token: account.token });
+      } catch (e) {
+        console.warn(`[P3-04(取消)] 收尾清空自选失败（不影响结论）：${e.message}`);
+      }
+    });
+
+    it('① tap 清空（桩 showModal 点取消）→ 页面 2 条、后端 2 条、没弹「已清空」', async () => {
+      const clearBtn = await page.$('#wl-clear');
+      expect(clearBtn).not.toBeNull();
+
+      // ⚠️ 桩法与其他两条「取消支」**不一样**，这是被实跑逼出来的：
+      // handleClearAll 是**回调写法**（watchlist/index.vue#L567 的 `success:`），
+      // 实测 `withNativeModal`（换 `wx.showModal`）拦不到它 ——
+      // 换完之后 readNativeModalCalls 是空的，2026-10-11 实跑确认。
+      // 回调写法要用 `confirmNextModal`（= 结果式 mock 掉 uni 自己的 showModal），
+      // 这也是 uniMock.js 里两套桩并存的真正原因。代价：这条路读不到弹窗文案。
+      helpers.confirmNextModal(program, { confirm: false });
+      await clearBtn.tap();
+      // 等它去「犯错」：真清了的话服务端和本地列表都会立刻变
+      // （handleClearAll 是回调里 `await clearFollow()` 之后才更新，见 watchlist/index.vue#L571-L576）
+      await sleep(2500);
+
+      // ① 交叉断言（关键）：后端还是那 2 条 —— 证明真的没发 DELETE /api/watchlist/clear
+      const res = await requestJson('GET', '/api/watchlist/list', { token: account.token });
+      expect(res.status).toBe(200);
+      expect(codesFromListResponse(res).sort()).toEqual([...CODES].sort());
+
+      // ② 页面也还是 2 条（本地列表没被清）
+      expect(await (await program.currentPage()).$$('#wl-follow-item')).toHaveLength(2);
+
+      // ③ 也没弹那句「已清空」—— 它只在 confirm 分支里（watchlist/index.vue#L574）
+      expect(await readToasts()).not.toContain('已清空');
+
+      // ④ 对照组（关键，防假绿）：同一个按钮、同一个桩法，只把 confirm 换成 true ——
+      //    这次必须真的清空。两次结果不同，才说明「取消」那一下**真的送到了应用手里**
+      //    并被 `if (res.confirm)` 挡住；否则可能只是「桩没送到 → 什么也没发生」，
+      //    那样这条用例测的就不是取消分支，而是一句永远为真的废话。
+      const clearBtnAgain = await page.$('#wl-clear');
+      helpers.confirmNextModal(program, { confirm: true });
+      await clearBtnAgain.tap();
+      await waitFor(
+        async () => {
+          const r = await requestJson('GET', '/api/watchlist/list', { token: account.token });
+          return r.status === 200 && (r.data.items || []).length === 0;
+        },
+        { timeout: 10000, label: '对照组：点确定后后端确实清空了' }
+      );
     });
   });
 
