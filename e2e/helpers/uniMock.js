@@ -103,9 +103,13 @@ async function withMockedUni(program, mocks, fn) {
  * （如 `settings/index.vue#L202`），这个 mock **不管用** —— 见上方第 5 条，
  * 那种情况请改用 `stubNativeModal` / `withNativeModal`。
  *
- * ⚠️ 用错**不会报错**：给 `await` 写法用了本桩 → 应用拿到 `undefined`，看着像「点了没反应」；
- *    反过来给回调写法用了 `withNativeModal` → 一次都记不到（`readNativeModalCalls` 回 `[]`）。
+ * ⚠️ 用错**不会报错**：给 `await` 写法用了本桩 → 应用拿到 `undefined`，看着像「点了没反应」。
  *    代价：本桩拿不到弹窗文案（结果式 mock 只能塞固定返回值）。见 `README.md` §6.8。
+ *
+ * ⚠️⚠️ **装的是持久 mock**：运行时就是 `uni.showModal = mockFn`，只有 `restoreUni` 能还原。
+ *    六个 `*.e2e.js` 共用同一个小程序实例 ⇒ 不还原会泄漏给后面所有套件，
+ *    且**静默**盖掉它们的 `wx.showModal` 桩（2026-10-18 实证，README §5.7.2）。
+ *    **禁止裸调**；真要用就包 `withMockedUni`（finally 还原）。
  */
 function confirmNextModal(program, { confirm = true } = {}) {
   return mockUni(program, 'showModal', {
@@ -141,13 +145,16 @@ function confirmNextModal(program, { confirm = true } = {}) {
  *    这是本环境**唯一**能拿到 showModal 文案的办法（函数式 mock 用不了，
  *    真实的原生弹窗又不在页面上）。用完记得 `restoreNativeModal`。
  *
- * ⚠️ 与 `confirmNextModal` 是**互补**关系，别用错（2026-10-11 实跑确认）：
- *    本函数只拦得到 **await 写法**的调用点（settings/index.vue#L204）。
- *    **回调写法**的调用点（`success: (res) => ...`，如 watchlist/index.vue#L567）
- *    换掉 `wx.showModal` 之后**一次都记不到**（`readNativeModalCalls` 回 `[]`），
- *    那种情况要改用 `confirmNextModal`（代价是拿不到弹窗文案）。
- *    判断方法就看应用那一行是 `await uni.showModal(...)` 还是 `success:` 回调。
- *    完整的判据表 + 「怎么发现自己用错了」见 `application/e2e/README.md` §6.8。
+ * ✅ **两种写法都拦得到**（2026-10-18 订正）：
+ *    · `await uni.showModal(...)`（settings/index.vue#L204）—— 2026-10-10 实测有效；
+ *    · `success: (res) => ...` 回调写法（watchlist/index.vue#L548/#L567）——
+ *      桩里同步调 `p.success(res)`，2026-10-18 对照实验实测记到 1 条。
+ *    2026-10-11 曾观测到「回调写法一次都记不到」，那是**假象**：当时前面的用例
+ *    裸调 `confirmNextModal` 且没还原，`uni.showModal` 已被持久 mock 顶掉，
+ *    `wx.showModal` 根本没被走到。详见 `application/e2e/README.md` §6.6 / §6.8。
+ *
+ *    ⇒ 新用例一律优先用本函数（自还原、还能拿到文案）；`confirmNextModal`
+ *      属于会泄漏的旧办法（见下方它的说明）。
  */
 async function stubNativeModal(program, { confirm = true, content } = {}) {
   return program.evaluate((opts) => {

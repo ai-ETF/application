@@ -149,7 +149,8 @@ e2e/
 │   ├── api.js                        # 直连后端的 HTTP 客户端（交叉断言 + 造服务端状态；P2 的会话增删改查也在这里）
 │   ├── env.js                        # 跑前环境自检（数据安全闸门在这里）
 │   ├── uniMock.js                    # uni API 的「结果式」mock + 换掉任意原生 API（withNativeModal / withNativeCall，见 §5.7）
-│   └── streamMock.js                 # 换掉 wx.request 自己造 SSE 流（见 §5.9，P2 用）
+│   ├── streamMock.js                 # 换掉 wx.request 自己造 SSE 流（见 §5.9，P2 用）
+│   └── requestMock.js                # 让普通请求失败 / 返回伪造响应（见 §5.13，P5 异常分支用）
 ├── patches/apply-node-modules-patches.js
 ├── README.md                         # 本文件：怎么跑、怎么排查、写用例的规矩
 └── 环境配置.md                        # 「照着做」的配置说明（含仓库里没有、必须自己建的那个文件）
@@ -184,6 +185,8 @@ e2e/
 | 造一条 SSE 流 | `withStreamMock(program, {urlIncludes}, fn)` | 见 §5.9。只拦 `enableChunked` 的请求，其余透传 |
 | 喂分块 / 汉字切两半 | `waitChunkHandler` → `pushChunkSplitMidChar(program, text, {onHead})` → `finishStream` | `onHead` 是观察「半块」状态的唯一窗口 |
 | 拿应用发出去的流式请求 | `readInterceptedSse(program)` | `{url, method, enableChunked, hasAuth, body}` |
+| 让流式请求在网络层失败 | `failStream(program, errMsg)` | 走应用的 `fail` 回调，和 `finishStream({statusCode:500})` 是**两条不同分支**（见 §5.9） |
+| 让普通请求失败 / 返回伪造响应 | `withRequestMock(program, rules, fn)` + `readRequestMockHits(program)` | 见 §5.13。**只拦匹配到的 URL，其余透传** |
 
 ---
 
@@ -313,6 +316,30 @@ result.errMsg.indexOf(':fail') !== -1 ? params.fail?.(result) : params.success?.
 **这类假绿怎么查出来**：反向验证时往 `success` 里插一句 `res.confirm = true`（`src/` 侧变体），
 用例**照样绿** ⇒ 那句压根没执行到。见 §7.2 的 2026-10-12 订正。
 
+#### 5.7.2 ⚠️ 结果式 mock 是**全局且持久**的，用完不还原会盖住后面所有套件的 `wx` 桩（2026-10-18 定位）
+
+`mockUniMethod` 在运行时里就是 `uni[method] = mockFn`，**没有「只生效一次」**
+（`@dcloudio/uni-mp-weixin/lib/automator.js`：`originUni[method] || (originUni[method] = uni[method]); uni[method] = mockFn`）。
+只有再调一次**不带 result** 的 `mockUniMethod`（即 `helpers.restoreUni`）才还原。
+
+而六个 `*.e2e.js` **共用同一个 app 实例**，所以一旦某个套件装完没还原：
+
+- 后面所有套件的 `withNativeModal` / `stubNativeModal`（换的是 `wx.showModal`）**一条都记不到** ——
+  `uni.showModal` 已经是 mock，调用根本走不到 `wx.showModal`；
+- 应用拿到的是 mock 塞的固定返回值：`{confirm:true}` 但**没有 `content`** 时，
+  重命名回调 `res.confirm && res.content && res.content.trim()`（`SessionDrawer.vue:220-222`）直接为假
+  ⇒ **静默什么都不做**；删除回调只看 `res.confirm`（`:193`）⇒ **真的删**，却一条记录都没有。
+- 实测（临时探针 `z-probe-mock-leak`，跑完已删）：同一页、同一个「清空自选」按钮，
+  **A 组**只装 `wx` 桩 → 记到 1 条；**B 组**先装 `mockUniMethod` 再装桩 → **记到 0 条，但后端照样清空了**
+  ⇒ mock 确实盖住了桩，而且**不报错**。
+- 这正是 2026-10-18 全量跑里 **P2-04 / P2-05×2 / P2-06 与 P4-03×2** 的真实成因：
+  P3 的 `confirmNextModal` 装完没有还原（全量日志里 4 次 `App.mockUniMethod`、**0 次** `restoreUniMethod`），
+  而套件顺序是 p1 → p3 → p2 → p4。**单跑 P2 / P4 都绿，因为没有 P3。**
+- **规矩**：优先用能自还原的 `withNativeModal`；非要用结果式 mock，就包在 `withMockedUni` 里（`finally` 还原），
+  或者至少在套件 `afterAll` 补一次 `restoreUni(program, 'showModal')`。
+- ✅ **已按此改正（2026-10-18）**：P3 的 4 处裸调全部换成 `withNativeModal`；全量复跑 **66/66 通过**，
+  日志里 `App.mockUniMethod` 0 次（验收记录见 §6.6）。
+
 ### 5.8 组件里的 id，在页面作用域下抓不到
 
 `page.$('#chat-input')` → `no such element`。不是因为没这个 id，而是**它在子组件内部**，页面作用域看不见。
@@ -378,6 +405,26 @@ await helpers.withStreamMock(program, { urlIncludes: '/api/secure-chat' }, async
 - 壳只拦 `enableChunked` 的请求，**其余透传**——同一个用例里「会话列表拉回来没有」这类断言还得靠真后端。
 
 **成本**：单条用例约 35 秒（2026-10-10 实测 30.8s / 31.2s）。
+
+#### 5.9.1 流式异常的四种造法（2026-10-19 追加，已落地为 P2-08 ~ P2-11）
+
+`streamChatMp` 里有**四条互不相同**的失败路径，别混成一种：
+
+| 造法 | 走到的分支 | 气泡文案 |
+|---|---|---|
+| `finishStream(program, { statusCode: 500 })` | `success` 里 HTTP 非 2xx（[index.vue:230](src/pages/index/index.vue#L230-L234)） | `抱歉，AI 请求失败（HTTP 500）。` |
+| `pushChunk('data: {"type":"error","message":"…"}\n\n')` | 解析出 error 帧后在 `success` 里统一 reject（[index.vue:190](src/pages/index/index.vue#L190-L192)、[:243](src/pages/index/index.vue#L243-L246)） | `抱歉，<服务端 message>。`（**即使已经渲染了 token 也会被覆盖**） |
+| `finishStream(program)` 但一个 token 都没喂 | `!receivedToken`（[index.vue:248](src/pages/index/index.vue#L248-L251)） | `抱歉，AI 服务未返回有效回复。` |
+| `failStream(program, 'request:fail …')` | `fail` 回调（[index.vue:254](src/pages/index/index.vue#L254-L268)） | `抱歉，<errMsg>。` |
+
+⚠️ 四条最终都走 `handleSend` 的同一个 catch（[index.vue:411-414](src/pages/index/index.vue#L411-L414)），
+所以**只断言文案分不出是哪条路径**。判据要加上「怎么触发的」：
+HTTP 失败必须用 `finishStream(500)`、网络失败必须用 `failStream`，别用同一个造法去验四句话。
+另外每条都要断言 `sending === false`（[:416](src/pages/index/index.vue#L416)）——
+标志位没复位的话输入区永远禁用，用户看到的是「卡死」而不是一句错误。
+
+**反向验证（2026-10-19 已做、已还原）**：把 P2-08 的期望文案改成兜底文案、把 P2-11 恢复段里的
+token 去掉 → 恰好这 2 条变红（10 通过 / 2 没通过），还原后 12/12。
 
 ### 5.10 真实 LLM 的用例：**按「答得快不快」挑问句，不是按「问句长不长」**
 
@@ -492,6 +539,43 @@ async function tapTabBar(page, label) {
 ⚠️ **P5-04 必须留在 `p5-register.e2e.js` 最后一条**：它是全文件唯一一个「点一下」把页面压进栈的用例，
 排它后面的用例会被自己的 `gotoPage` 噎住。
 
+### 5.13 让普通请求失败 / 返回伪造响应（2026-10-19 新增，P5 异常分支用）
+
+**要解决的问题**：P5 有几条分支只在「后端挂了 / 返回了别的数据」时才走到，比如
+`loadProfileResult()` 的「画像接口失败 → 回退本地缓存」和 `loadQuestionnaire()` 的失败 toast。
+原来的文档里这些写的是「本阶段没做」，理由是「要造这个状态得改坏 `wx.request`」——
+`wx.request` **是换得掉的**（同 §5.9 的依据），于是补成 [`helpers/requestMock.js`](helpers/requestMock.js)。
+
+```js
+await helpers.withRequestMock(program, [
+  // 网络层失败（走 request() 的 fail → reject）
+  { urlIncludes: '/api/risk/profile', action: 'fail', errMsg: 'request:fail 模拟断网' },
+  // 伪造一个响应（走 success，statusCode/ data 原样给应用）
+  { urlIncludes: '/api/risk/questionnaire', action: 'respond', statusCode: 500, data: { detail: '…' } },
+], async () => {
+  const page = await helpers.gotoPage(program, RISK_ROUTE, RISK_PATH, { force: true });
+  // …断言
+  const hits = await helpers.readRequestMockHits(program);  // 证明这些请求真的发生过
+})
+```
+
+必须知道的点：
+
+- **只拦匹配到的 URL，其余原样透传**给真 `wx.request`（和 `streamMock` 同一个原则）。
+- **`readRequestMockHits` 的断言不能省**：只断言「页面显示了缓存内容」的话，如果壳没生效、
+  请求真的打到后端并成功了，用例照样绿 —— 那就成了假绿。要断言**这条请求确实被我们接管过**。
+- 回调是**异步**的（`setTimeout 20ms`），和真 `uni.request` 的时序一致；同步回调会让「页面还在挂载」
+  和「响应已到」的先后关系失真。
+- `respond` 的 `data` 会原样成为 `res.data`。`request()` 对非 2xx 会 reject，错误文案取
+  `detail` / `message` / `error`（[src/utils/request.ts:19-27](src/utils/request.ts#L19-L27)）。
+
+**落地用例**：P5-06（画像失败 → 缓存）、P5-07（问卷失败 → toast）。**注意顺序**：两者都要
+`gotoPage(..., { force: true })` 重新挂载，否则会读到上一个状态的页面实例。
+
+**反向验证（2026-10-19 已做、已还原）**：把 P5-06 的 `urlIncludes` 改成不存在的 URL（壳形同虚设）、
+把 P5-07 期望的 toast 文案改短 → 恰好这 2 条变红（9 通过 / 2 没通过），还原后 11/11。
+⚠️ P5-06 在壳失效那一轮**只红在 hits 断言上** —— 这正说明 hits 那条不是摆设，别删。
+
 ---
 
 ## 6. 常见故障 → 处置
@@ -502,7 +586,7 @@ async function tapTabBar(page, label) {
 |---|---|---|
 | `Wechat web devTools not found` | `executablePath` 与实际安装位置不符 | 改 [`jest.e2e.config.js`](../jest.e2e.config.js) 的 `executablePath` |
 | 日志只有 `gettestpublib`、**没有** `openProject`，然后白等 60s | **端口自撞** | 见下 |
-| `Failed to launch Wechat web devTools , please make sure http port is open` | **上一轮残留的开发者工具进程还占着 9420** | 见下面第二段 |
+| `Failed to launch Wechat web devTools , please make sure http port is open` | ①上一轮残留进程占着 9420；②appid 权限；③**Windows 保留端口段吃掉了开发者工具内部用的 3799**（2026-10-18 遇到） | 先跑 `cli.bat islogin` 看真实报错，见下面第三段 |
 | 从 WSL 里跑，报 rollup 错 | `node_modules` 是 Windows 侧装的 | 到 Windows 侧跑 |
 
 **端口自撞**是这套环境最阴的坑：`jest.e2e.config.js` 里有两个端口，**必须不一样**。
@@ -532,6 +616,37 @@ Get-Process wechatdevtools -ErrorAction SilentlyContinue | Stop-Process -Force
 
 ⚠️ **这句报错跟"端口没开"没关系，别去翻防火墙、也别去点开发者工具的设置。** 另有历史记录显示同一个字符串也可能与 appid 权限有关，
 所以它属于「一句话对应多种成因」的那类报错 —— **先看有没有残留进程，再看别的。**
+
+**第三种成因：Windows 保留端口段把 3799 圈走了**（2026-10-18 实测，整轮 6 个套件全部 `Test suite failed to run`、0 条用例执行）。
+开发者工具的命令行内部**写死用 3799**（`code/package.nw/js/common/cli/index.js` 里 `let j=3799`）。
+WinNAT 开机时会随机圈一段 TCP 端口给 WSL/Hyper-V 用，如果恰好覆盖 3799，`cli.bat` 一启动就 `EACCES`：
+
+```
+× #initialize-error: Error: listen EACCES: permission denied 127.0.0.1:3799
+```
+
+**判断方法**（比看 jest 那句假报错快）：直接单跑命令行，它会打出真实错误：
+
+```powershell
+& "D:\Program Files (x86)\Tencent\微信web开发者工具\cli.bat" islogin
+```
+
+同时看一眼保留段是否包含 3799：
+
+```powershell
+netsh interface ipv4 show excludedportrange protocol=tcp
+```
+
+**处置**（管理员 PowerShell）：
+
+```powershell
+net stop winnat
+net start winnat
+```
+
+重启后 WinNAT 会重新分配端口段。复跑 `cli.bat islogin`，正常输出形如
+`√ IDE server started successfully, listening on http://127.0.0.1:<新端口>` + `{"login":true}`，就说明修好了。
+若重启服务后 3799 仍在保留段里，**重启一次电脑**。
 
 ### 6.2 `连不上后端 ... ECONNRESET`
 
@@ -577,6 +692,13 @@ Get-Process wechatdevtools -ErrorAction SilentlyContinue | Stop-Process -Force
 |---|---|---|
 | **甲：该跳没跳** | `pages/index/index` | 应用**进了首页**，但「失效了就该跳登录页」这件事没发生 |
 | **乙：跳没生效** | `pages/login/index` | 导航发出了，但页面没动，还停在上一次的位置 |
+
+⚠️ **「乙」的落点就是「上一次停的地方」，不一定是登录页。** 2026-10-18 全量跑实测：
+套件顺序变成 p1 → p2 → p3 → **p5 → p4** → hello，P5 刚跑完停在 `pages/register/index`，
+P4-00 紧接着发的第一次 `reLaunch('/pages/login/index')` 被吞，等到的是
+「当时实际停在：`pages/register/index`」。**判据是「没到目标页」，不是「停在登录页」。**
+另外注意：**套件顺序不是固定的** —— 配置里没有任何排序，jest 按历史耗时排序，
+同一套用例不同轮次的顺序可能不同（上面这轮就跳过了原先的 p1→p3→p2→p4→p5）。
 
 ⚠️ **别以为「乙」只会长在 P4 的用例里。** 它也能在**别的套件的 setup 阶段**发作，而且长相很不一样、
 更容易被误读：**整份套件 N 条一次性全红、报错信息一模一样**，比如
@@ -818,6 +940,26 @@ key 的长度 / 等待期间应用弹过的提示）。照着读：
 | 22 | 新增 **P5-04**（登录页「还没有账户？注册」入口）后单跑 `test:e2e -- p5-register` | 1 次 | **全绿**（`7 passed / 7 total`，122.5s）。P5-04 单条 19.0s（`navigateTo` 本就慢）。日志可见它**真的点了**：`Element.tap` 落在「还没有账户？注册」上，页面 id 13 → 14、path 变 `pages/register/index`，随后 `#reg-username` / `#reg-confirm` 都查到 |
 | 23 | ⭐ **P5-04 反向验证**：把 `handleGoRegister` 里那行 `uni.navigateTo` 注释掉，单跑 `test:e2e -- p5-register -t 'P5-04'` | 1 次 | **该条变红** —— 「等待『点「还没有账户？注册」后应进到注册页』超时（15000ms）。**当时实际停在：`pages/login/index`**」（`1 failed, 6 skipped`）⇒ 它确实靠那次真实点击才通过，不是碰巧绿。改完按备份还原，`sha256` 与 git HEAD 一致，净改动为 0 |
 
+**24–28 是 2026-10-18 的整轮执行记录**（Windows 侧全量跑 + P2 复跑）：
+
+| # | 命令 / 动作 | 跑了几次 | 结果 |
+|---|---|---|---|
+| 24 | 修复开发者工具 3799 被 WinNAT 保留段占用（`cli.bat islogin` → `EACCES 127.0.0.1:3799`；管理员 PowerShell `net stop winnat` / `net start winnat`） | 1 次 | `islogin` 返回 `{"login":true}`、IDE server 听在 34376；6 个套件恢复可启动。成因与完整命令见 §6.1 第三种成因 |
+| 25 | `npm run test:e2e -- p1-trading`（后端进程已自己死掉） | 2 次 | 第 1 次 **22/22 全红**；`curl 127.0.0.1:8000/docs` 返回 000 ⇒ 带 `E2E_MARKET_FIXTURE` + `ENABLE_TEST_ENDPOINTS=1` 重启后端后复跑 **22/22 通过（186.8s）** |
+| 26 | `npm run test:e2e`（全量第 1 轮） | 1 次 | **4 套件没通过 / 19 条**（1510.6s）：P4 的 7 条全卡在 `POST /api/secure-chat/register` 15s 超时、P3-03 ⑥ 卡在 2s 等后端列表更新。后端日志显示同批请求 200/409，判为 6 套件串行时的负载性超时，**第 2 轮未复现** |
+| 27 | `npm run test:e2e`（全量第 2 轮，`Tee-Object` 留档） | 1 次 | **58 通过 / 8 没通过 / 66**；只有 P2 没通过：8 条全是 `beforeAll` 的**同一条错误**（`gotoIndex` 的 reLaunch 8s 无回包，页面停在 `pages/register/index`），用例体一条都没执行。P1/P3/P4/P5/hello 全过 |
+| 28 | `npm run test:e2e -- p2-chat`（复跑） | 1 次 | **8/8 通过（110.6s）** ⇒ 全量下的 P2 没通过是套件顺序/导航偶发（§6.6「乙：跳没生效」），不是用例或产品问题 |
+| 29 | 把 `gotoIndex` 改成 `helpers.gotoPage(..., { force: true })`（内置静置 3 秒 + 最多 3 次退避重试，见 §6.6 末尾），连续复跑 | 4 次 | **3 轮全绿**（119.3s / 128.7s / 111.4s）；**1 轮 5 红**（93.4s）。4 轮都**没有**再出现导航失败或 `gotoPage` 重试告警。那轮 5 红的日志被启动命令的 `tail` 截掉，只剩 P2-06 的条数断言；但后端日志显示**整轮没有一次 `PUT .../title`** ⇒ 失败起点在 P2-04 的抽屉操作，后 4 条缺前置连坐，**与导航无关、未复现**，标「需确认」 —— ⚠️ **订正（2026-10-18 晚）**：真正起点是 **P2-03 断言了异步刷新的旧快照**，P2-04 根本没执行；见 §6.6 末尾「再追加」 |
+| 30 | ⭐ **加固后的全量第 3 轮**（`D:\run_full.cmd`，完整日志 `D:\full-run.log`） | 1 次 | **60 通过 / 6 没通过 / 66**（501.6s）。**P2 的 `beforeAll` 导航问题没有再出现** —— P2-01/02/03/07 正常执行并通过，后端有 3 次 `POST /api/secure-chat` 均 200 ⇒ `gotoPage` 加固对目标问题有效。没通过的 6 条：P2-04、P2-05（取消支）、P2-05 删除、P2-06（缺前置连坐），以及 P4-03 两条。**P2 这组仍是老形状**：抽屉按钮点了、`wx.showModal` 没记录、后端**整轮没有一次 `PUT .../title`**；P2-04 等标题 15s 超时，P2-05 两条的「弹窗确实弹了」对照组为 0。**P4-03 形状不同**：弹窗调用读数为 0，但后端有 `POST /api/secure-chat/logout 200` ⇒ 应用的处理函数其实跑了，判为测试侧「`tap()` 之后立刻读」的竞态。另：P3 的 `openWatchlist` 有 3 次、P5 有 1 次「第 1/3 次没落到」重试告警，**都在第 2 次成功**、两个套件仍全过 ⇒ 导航丢失仍偶发，`gotoPage` 重试在兜底 |
+| 31 | 针对 #30 里 P4-03 的竞态：两处「`tap()` 后立刻读弹窗记录」改成**轮询等记录出现**（`helpers.waitFor`，最多 5s），单跑 `test:e2e -- p4-auth` | 1 次 | **7/7 通过**（77.1s），P4-03 与取消支都过 ⇒ 改动没弄坏原流程。⚠️ 这两条本来就偶发，**通过不能证明竞态已被彻底覆盖**，只能说读法改稳了；要等下一次全量再验收 |
+| 32 | 按 §6.6 末尾「再追加」修 P2-03：不再断言采样快照，改用 `helpers.waitFor` 等会话列表收敛（8s）；先补 5 轮基线，再连跑 5 轮 | 5 + 5 次 | 基线（未修）**5 轮全绿**（110.5–115.4s），符合「约 1/4 概率、这轮没踩中」；修后**5 轮全绿**（109.5 / 107.9 / 117.2 / 115.4 / 108.5s，每轮 8/8）。⭐ **反向验证**：把条件临时改成 `=== 3`（永远不成立）→ **5 没通过 / 3 通过 / 93.9s**，P2-03 报「等待『发完消息后会话列表刷成 2 个（新会话排第一）』超时（8000ms）」，后面三条「缺前置」、P2-06 拿到 2 条 ≠ 4 —— **与原偶发那一轮（93.4s / 5 红）形状一致**；还原后复跑 **8/8 通过（110.3s）** |
+| 33 | P2 修好后第 1 次全量（`D:\full-after-p2fix.log`） | 1 次 | **65 通过 / 1 没通过 / 66（495.5s）**，**P2 一次没再红** ⇒ P2-03 的修复有效。唯一没通过的是 **P4-00 的 `beforeAll`**：那轮顺序 `p1 → p2 → p3 → p5 → p4 → hello`，P5 停在 `pages/register/index`，P4-00 第一发 `reLaunch(登录页)` 被吞、等登录页超时。判为套件边界导航丢失（同 §6.6「乙」），与产品无关 |
+| 34 | 单跑 P4 ×2，确认 #33 与产品无关 | 2 次 | **7/7 通过**（69.7s / 76.9s）⇒ 加固前先证明「单跑没问题」，再把 P4-00 换成 `helpers.gotoPage`（不用 `force`） |
+| 35 | 加固后第 2 次全量（`D:\full-run2.log`） | 1 次 | **65 通过 / 1 没通过 / 66（539.2s）**：**P4 通过（56.9s）**，加固生效；这次换成 **P3-04 ①** 报「等待『后端自选已清空』超时（10000ms）。最后一次：…挂起超过 2000ms（无回包）」。后端日志同窗口 `DELETE /api/watchlist/clear 200（removed=2）`、`GET /api/watchlist/list 200（total=0）` ⇒ **后端答了**；失败窗口出现 APScheduler「job was missed by 2.0s / 4.6s」，判为后端进程短暂卡顿超过 `waitFor` 单次尝试的 2s 上限。单跑 P3 两轮：**21/21（145.6s）** 与 **1 没通过 / 20 通过（146.3s，失败点换成 P3-04 取消支的对照组，同形状）** ⇒ 与用例/产品无关，**属环境/负载类，未定案（需确认）**，详见 §6.6 末尾「再追加 2」 —— ✅ **2026-10-19 已查明**：D-09（后端每个请求重建 Supabase 客户端），同见该节 |
+| 36 | ⭐ **最后一次全量验收（`D:\full-run4.log`，后端重启后）** | 1 次 | **6/6 套件通过、66/66 条通过（541.4s）**。顺序 `p3 → p1 → p2 → p5 → p4 → hello`（各套件 170.4 / 144.1 / 103.6 / 73.4 / 49.5s，hello 即时）。**P3-04 的环境卡顿没有复现**，P2 / P4 均一次通过 ⇒ P2-03 与 P4-00 两处加固在「全量 + 全新后端进程」下验收通过。注：中途被会话结束打断的上一轮（只跑到 P1/P3）里 P3 也是通过的，进一步说明 #35 那条是偶发 |
+| 37 | ⭐ **补齐 P2 流式异常 4 条 + P5 异常分支 4 条后的第 1 次全量**（`D:\full-run5.log`） | 1 次 | **73 通过 / 1 没通过 / 74（641.5s）**，新增的 P2-08~11、P5-05~07 全部通过 ⇒ 与既有用例共用一个 App 实例不互相干扰。唯一没通过的是 **P3-04 ①**，报错与 #35 **逐字同形**：「等待『后端自选已清空』超时（10000ms）。最后一次：…挂起超过 2000ms（无回包）」。同窗口后端日志 `DELETE /api/watchlist/clear 200`、随后多次 `GET /api/watchlist/list 200（total=0）` ⇒ **后端答了、数据也清掉了**，是 Node 侧单次尝试没在 2s 内等到（负载/后端卡顿超过 `waitFor` 单次上限），**不是用例或产品问题**；单跑 `test:e2e -- p3-market-watchlist` **21/21 通过（157.1s）**，P3-04 ① 耗时 3.5s。属已知偶发（#35 / D-09），**只登记不改** |
+| 38 | ⭐ **第 2 次全量验收（`D:\full-run6.log`，同一后端进程）** | 1 次 | **6/6 套件通过、74/74 条通过（533.3s）**。顺序 `p1 → p3 → p2 → p5 → p4 → hello`（各套件 180.7 / 120.9 / 110.1 / 78.1 / 43.1s，hello 即时）。**P3-04 没有复现**；新增的 P2-08~11、P5-05~07 在全量下全部通过 ⇒ 74 条共用同一 App 实例互不干扰。**74/74 的干净全量验收到此完成** |
+
 ⚠️ **P5 每跑一轮真写 2 个账号**（走 HTTP 的 + 走真实注册页 UI 的），两个都在 `afterAll` 里注销。
 首跑因用例中途失败漏掉了 UI 那个（当时 `uiAccount` 是在末尾才赋值的），**已改成「点提交之前就先登记待清理」**。
 
@@ -870,6 +1012,146 @@ key 的长度 / 等待期间应用弹过的提示）。照着读：
 >
 > 🔗 **这条产品侧缺口已收进统一缺陷台账**：[00 §五 **D-04**](../../ai-etf/docs/e2e/00-背景与已知问题.md)
 > （清存储早于跳转旗标 + 被吞无兜底；连同 D-01~D-07 共 7 条，**只登记、不修**）。
+
+**2026-10-18 补：P2 的 `gotoIndex` 已改用 `gotoPage`（针对「乙」的测试侧加固）。**
+
+- **起因**：全量跑时 P5 刚结束、页面停在注册页，P2 的 `beforeAll` 立刻发 `reLaunch('/pages/index/index')` →
+  8 秒无回包、页面不动 → 等首页 15 秒超时 → **8 条用例报同一条 `beforeAll` 错误，用例体一条没执行**。
+  同一文件单跑 **8/8 通过** ⇒ 判为套件顺序/导航偶发，不是用例或产品问题。
+- **改法**：`gotoIndex` 不再裸发 `reLaunch`，改用 [`helpers.gotoPage`](helpers/nav.js)——
+  它内置「**发之前先静置 3 秒 + 失败退避 8 秒重试，最多 3 次**」。
+  ⚠️ 必须带 `force: true`：已经在首页时也要重新挂载，P2-06 靠 `onMounted` 重新拉历史消息。
+- **效果（连跑 4 轮）**：**3 轮全绿**（119.3s / 128.7s / 111.4s，比改前多约 9–18 秒）；
+  **4 轮都没有再出现导航失败，也没有一次 `gotoPage` 重试告警**。
+  剩下 1 轮 5 红（93.4s）：该轮日志被启动命令的 `tail` 截掉，只能看到 P2-06 在消息条数上对不上；
+  但后端日志显示**整轮没有一次 `PUT .../title`** ⇒ 失败起点在 **P2-04 的抽屉操作**（重命名请求根本没发出），
+  后 4 条是缺前置连坐，**与导航无关、后续 3 轮未复现**，标「需确认」。
+  ⚠️ **2026-10-18 晚订正**：这段推断是错的 —— 起点在 **P2-03 断言了异步刷新的旧快照**，
+  P2-04 压根没执行；机理、证据与修复见本节末尾「2026-10-18 再追加」。
+- 仍**不能保证 100%**：这类导航丢失只能降低概率，别把这条改动当成「从此不会再偶发」。
+
+**2026-10-18 补：加固后的全量复跑（6 个套件串行）。**
+
+- **目标问题没有再出现**：P2 的 `beforeAll` 正常落到首页，P2-01/02/03/07 都执行并通过，后端有 3 次
+  `POST /api/secure-chat` 均 200 ⇒ `gotoPage` 加固对「乙」在 P2 `beforeAll` 上的表现确实有效。
+- 但这一轮 **60 通过 / 6 没通过 / 66**：P2-04、P2-05（取消支）、P2-05 删除、P2-06（连坐），
+  加上 **P4-03 两条**。P2 这组仍是上面那轮单跑 5 红的形状：抽屉按钮点了、`wx.showModal` 没记录、
+  **后端整轮没有一次 `PUT .../title`**，等标题 15s 超时；**成因仍未查明，标「需确认」**。
+- **P4-03 不是同一类**：弹窗调用读数为 0，但后端有 `POST /api/secure-chat/logout 200`
+  ⇒ 处理函数其实跑了，只是测试侧 `tap()` 之后**立刻**读，读在了应用处理点击之前。
+  P2-05 两条的「弹窗确实弹了」对照组为 0 也可能是同一竞态，但没有后端证据支持，不并入结论。
+- **已按上面的证据改稳 P4-03 两处的读法**：`tap()` 后不再立刻读一次，改为轮询等弹窗记录出现（最多 5 秒）。
+  单跑 `test:e2e -- p4-auth` **7/7 通过（77.1s）**，但这两条本来就偶发，通过**只说明没弄坏**，
+  竞态是否真被覆盖，要等下一次全量里再遇到才知道。
+- 导航侧：P3 的 `openWatchlist` 出现 3 次、P5 出现 1 次「第 1/3 次没落到」告警，
+  **全部在第 2 次重试成功**，两个套件仍全过 ⇒ 导航丢失仍偶发，`gotoPage` 重试在起兜底作用。
+
+**2026-10-18 追加：上面那 6 条红的成因已查明 —— P3 泄漏了 `uni.showModal` 的 mock，不是用例竞态。**
+
+- **证据一（日志）**：该轮全量里 `App.mockUniMethod` 共 4 次、**`restoreUniMethod` 0 次**，全部发生在 P3
+  （13:36:46 / 13:37:01 / 13:37:12 / 13:37:16，最后一次是 `{confirm:true}`）。mock 改的是 uni-app 自己的
+  `uni.showModal`（`uni[method] = mockFn`），**一直留到 app 实例销毁**；套件顺序是 p1 → p3 → p2 → p4。
+- **证据二（行为完全吻合）**：P2-04 的重命名 → mock 返回 `{confirm:true}` 但**没有 `content`**
+  ⇒ `res.confirm && res.content && res.content.trim()` 为假 ⇒ 不调 `renameChat` ⇒ **后端整轮无 `PUT .../title`**、
+  标题不变、`wx` 桩 **0 条**；P2-05 删除 → 回调只看 `res.confirm` ⇒ **真删**（后端那两笔 `DELETE`）、
+  但 `wx` 桩 **0 条**；P2-05 取消支的「弹窗确实弹了」对照组同样是 0；P2-06 缺前置连坐。
+- **证据三（现场复现，临时探针已删）**：干净环境下只装 `wx` 桩点「清空自选」→ 记到 1 条；
+  **先装 `mockUniMethod('showModal', {confirm:true})` 再装 `wx` 桩** → 记到 **0 条**，但后端**照样清空**
+  ⇒ mock 盖住了 `wx.showModal`，且**静默无报错**。
+- **订正 P4-03 的结论**：上一段说「P4 是 `tap()` 后立刻读的竞态」**不成立** —— 同一轮里 P4 也跑在 P3 之后，
+  `wx` 桩同样被 mock 盖住，所以读数**永远**是 0（也因此 10-18 改的 `waitFor` 轮询在**全量**里救不了它，
+  只在单跑 P4 时有效）。P2-05 两条同理，不是两条不同的病，是**同一个泄漏**。
+- **真凶位置**：`p3-market-watchlist.e2e.js` 的 4 处 `helpers.confirmNextModal(...)`
+  （:646 / :701 / :794 / :816）**都是裸调**，没有任何 `restoreUni`，`afterAll` 里也没有兜底。
+  而 `helpers/uniMock.js` 的 `withMockedUni` 注释早就写了「一定要用这个而不是裸调 mock……制造出极难查的串扰」。
+- **已修复（2026-10-18，测试侧）**：采用「更彻底」方案 —— 4 处全部改成
+  `helpers.withNativeModal(program, { confirm }, async () => { await xxx.tap(); })`（自还原、还能录文案），
+  结果式 mock 从用例里彻底去掉；`helpers/uniMock.js` 里 10-11 那条「回调写法拦不到」的错误注释一并订正。
+- **验收（全量）**：单跑 P3 21/21（165s）→ 全量 **66/66 通过、6/6 套件 PASS（501.7s）**；
+  P2-04 / P2-05×2 / P4-03×2 全部通过；全量日志里 `App.mockUniMethod` **0 次**。
+  单跑 P2/P4 本来就绿，证明不了修复，验收只认全量。
+
+**2026-10-18 再追加：上面那轮「单跑 P2 的 5 红」也查明了 —— 是 P2-03 的断言赌了「异步刷新」的时序。**
+（**订正**：前面两处写的「起点在 P2-04 的抽屉操作」**不对**。P2-04 根本没执行用例体，
+它死在 `requireChat(state.chat2)` 的「缺前置」；后端整轮没有 `PUT .../title` 只能说明
+**重命名请求没有发出**，不能反推成「抽屉点开了但没反应」。）
+
+- **机理（产品代码没毛病）**：`handleSend` 里 `chatStore.fetchSessions()` **没有 await**
+  （[index.vue:409](../../application/src/pages/index/index.vue#L409)），紧接着 `finally` 就把
+  `sendingMessage` 置 false（[index.vue:416](../../application/src/pages/index/index.vue#L416)）。
+  而 `sampleBotBubble` 的退出条件是「bot 非空 **且** 不在发送中」——
+  所以它可能在**会话列表的 HTTP 响应回来之前**就返回。P2-03 却直接断言
+  `sample.last.sessions` 有 2 条（[p2-chat.e2e.js:542](../../application/e2e/p2-chat.e2e.js#L542) 改前），
+  撞上「列表还是 1 条」那一帧就红。
+- **证据（三条独立线索）**：
+  - **后端日志**：chat2 的回答落库后，下一条 jest 侧请求直接是 P2-06 的 `getMessages(chat1)`
+    —— P2-04 / P2-05（取消支）/ P2-05 **一条 HTTP 都没发**，印证它们死在「缺前置」而不是抽屉；
+  - **开发者工具日志**（`WeappLog/logs/2026-10-18-20-55-01-898-IPWAvXPPaG.log`）：P2-03 之后整轮
+    只有 **3 次页面跳转**（P2-06 两次 Tab 切换 + P2-07 的 `gotoIndex`），P2-04 ④ / P2-05（取消支）
+    收尾的 `gotoIndex` 都没发生 ⇒ 这两条确实没走到结尾；
+  - **耗时**：那轮 93.4s，正常约 110–117s —— 差的正是两条 15 秒的 `waitFor`（P2-04 等标题、
+    P2-06 等回填），它们都在「缺前置」之前就被跳过了；反向验证复现的一轮是 93.9s，形状一致。
+- **概率对得上**：采样轮询间隔 200ms、列表刷新约几十毫秒 ⇒ 约 **1/4** 的轮次踩中。
+  事后补跑 5 轮基线**一次都没复现**（110.5–115.4s），也和这个概率相符。
+- **修法（测试侧，没碰 `src/`）**：P2-03 不再断言采样快照，改成用 `helpers.waitFor`
+  **等会话列表真收敛**（最多 8 秒，标签「发完消息后会话列表刷成 2 个（新会话排第一）」），
+  断言仍落在应用的真实状态上；`sampleBotBubble` 的注释同步写明「`last` 只是退出那一刻的快照，
+  别直接断言 `last.sessions`」。
+- **验收**：修后连跑 **5 轮全绿**（109.5 / 107.9 / 117.2 / 115.4 / 108.5 秒，每轮 8/8）。
+  **反向验证**：把条件 `=== 2` 临时改成 `=== 3`（永远不成立）→ **P2-03 按新标签超时变红**
+  （`5 没通过 / 3 通过`，93.9s，P2-04/05/05 取消支三条「缺前置」、P2-06 拿到 2 条 ≠ 4）
+  ⇒ 新断言读的是实时状态，不是碰巧绿。已还原，还原后再跑一轮 **8/8 通过**。
+- **顺带一条通用纪律**（已写进 skill `references/02` §5.1 第 4 条）：**断言「异步刷新之后」的状态，
+  要等它落地，别赌轮询快照** —— 应用把请求「发出去就不管」时，任何「此刻」的读取都可能早于响应。
+
+**2026-10-18 再追加 2：P2 修好之后连续两轮全量各挂 1 条，但两次是不同的条、不同的成因。**
+
+这两轮（539.2s / 约 540s）都是 `65 通过 / 1 没通过 / 66`，**P2 一次都没再红**，
+说明上面那处修复有效。两条红的成因分开记：
+
+- **第一条：P4-00「开套件就落在登录页」的 `beforeAll` —— 套件边界上导航被吞（已加固）。**
+  - 那轮顺序是 `p1 → p2 → p3 → p5 → p4 → hello`，P5 结束时页面停在 `pages/register/index`；
+    P4-00 第一发 `reLaunch(/pages/login/index)` 被吞，随后等登录页 5 秒超时（实际停在 register）。
+  - **判据**：单跑 P4 连跑 2 轮都是 **7/7 通过**（69.7s / 76.9s）⇒ 与产品无关，是套件边界问题。
+  - **⚠️ 套件顺序不是固定的**：`jest.e2e.config.js` 里没有任何排序配置，jest 按历史耗时排序。
+    所以「上一个套件最后停在哪」每轮都可能不同 —— 加固要按「不知道从哪来」写，
+    不能假设从首页或登录页开始。
+  - **修法**（同 P2 的 `gotoIndex`）：P4-00 改用 `helpers.gotoPage(program, LOGIN_ROUTE, LOGIN_PATH)`
+    （[p4-auth.e2e.js:314](../../application/e2e/p4-auth.e2e.js#L314)；实现见
+    [nav.js:103](../../application/e2e/helpers/nav.js#L103)）—— 内置「发之前先静置 3 秒 +
+    最多 3 次、退避 8 秒重试」。这里**不用** `force`：只要落在登录页即可，不要求重新挂载。
+  - **验收**：加固后的下一轮全量 P4 **通过**（56.9s）。
+
+- **第二条：P3-04 读后端自选列表时「无回包」超时 —— 后端短暂卡顿。根因已查明（2026-10-19，D-09）。**
+  - 失败文案：`等待「后端自选已清空」超时（10000ms）。最后一次：抛错：「后端自选已清空」挂起超过 2000ms（无回包）`。
+    另一轮单跑 P3 时，失败点换成了 P3-04（取消支）的对照组，**同一条形状**。
+  - **后端其实是答了的**：同一窗口的后端日志里 `DELETE /api/watchlist/clear` **200（removed=2）**、
+    紧随的 `GET /api/watchlist/list` **200（total=0）** ⇒ 不是接口错、也不是数据没清掉。
+    两处断言点分别在 [p3-market-watchlist.e2e.js:718](../../application/e2e/p3-market-watchlist.e2e.js#L718)
+    与 [:829](../../application/e2e/p3-market-watchlist.e2e.js#L829)（都给了 10 秒总预算）。
+  - **线索指向后端进程自身停顿**：两个失败窗口各出现一次 APScheduler 的
+    「job was missed by `0:00:01.955729`」/「`0:00:04.567091`」；而 `helpers.waitFor` 对**每次**尝试
+    只给 `max(200ms×5, 2000ms)`（[waitFor.js:54](../../application/e2e/helpers/waitFor.js#L54)），
+    后端一卡 2–4.5 秒，这一次尝试就被判「挂起」，10 秒总预算也跟着耗光
+    （`requestJson` 自己给了 15 秒，[api.js:33](../../application/e2e/helpers/api.js#L33)，没到上限）。
+  - 机器体检：后端进程已连续跑 5 小时 19 分、常驻内存约 950 MB；主机 20 核、空闲内存约 3.5 GB，
+    **不是整机被拖垮**。P3 单跑结果：第 1 轮 **21/21 通过（145.6s）**，第 2 轮 **1 没通过 / 20 通过（146.3s）**。
+  - **根因已查明（2026-10-19，登记为 `ai-etf/docs/e2e/00-背景与已知问题.md` 的 D-09）**：
+    `get_supabase()` **每次调用都 `create_client`**（[supabase_client.py:13-33](../../ai-etf/server/storage/supabase_client.py#L13-L33)），
+    而服务是**每个请求 new 一个**（[watchlist_service.py:18-21](../../ai-etf/server/services/watchlist_service.py#L18-L21)）。
+    单次创建 p50 **311 ms**：耗时几乎全在 httpx 建 SSL 上下文，证书包在 `/mnt/d` 跨盘读 **81 ms/次**；
+    环境里的 `HTTP(S)_PROXY` 又让一个客户端建 3 个上下文。
+    **受控加压**（本机）：健康端点 16 并发 p50 **11 ms**；DB 端点同负载 p50 **11.8 s**、`128/128` 超 1 秒，
+    期间定时任务延迟记录 +5。**临时把客户端缓存后**同负载 p50 **638 ms**、最慢 923 ms、**0 条超 1 秒**，
+    进程只初始化 1 次、定时任务零延迟。
+  - **处置**：**E2E 侧不改** `waitFor` / `api.js` 的超时参数 —— 不是用例的问题；
+    后端修复方向（缓存客户端；本地后端别设代理变量）写进 D-09，交负责人拍板。**只登记，未改任何代码。**
+
+> **本轮给下一位的提醒**：看到「无回包 / 挂起超过 2000ms」时，**先去看后端日志那一秒答没答**。
+> 答了 200 ⇒ 不是产品 bug，别改断言去迎合，也别改 `src/`；先把「环境/负载」这条路走完。
+
+**验收（2026-10-19）**：重启后端后跑完整全量 —— **6/6 套件、66/66 条通过（541.4s）**，
+顺序 `p3 → p1 → p2 → p5 → p4 → hello`，P2 / P4 一次通过，**P3-04 的卡顿没有复现**。
 
 ### 6.7 P2 气泡里是「抱歉，…」或干脆是空的
 
@@ -982,7 +1264,15 @@ console.log({ viaHarness, viaApp });
 | 应用那个调用点怎么写 | 用哪个桩 | 用错的后果 |
 |---|---|---|
 | `await uni.showModal({...})`（如 `settings/index.vue:204`） | `withNativeModal` / `stubNativeModal`（换 `wx.showModal`） | 换 `confirmNextModal` → 应用 `await` 拿到 `undefined` → `!result.confirm` 抛错，**看着像「点了没反应」** |
-| `uni.showModal({ ..., success: (res) => ... })`（如 `watchlist/index.vue:567`、`SessionDrawer.vue:189` / `:215`） | `confirmNextModal`（结果式 mock） | 换 `withNativeModal` → **一次都记不到**，`readNativeModalCalls` 回 `[]`，**不报错、不挂起**，用例照跑 |
+| `uni.showModal({ ..., success: (res) => ... })`（如 `watchlist/index.vue:567`、`SessionDrawer.vue:189` / `:215`） | **两种都可以**，优先 `withNativeModal`（它会自还原） | 见下面的订正：2026-10-11 那条「换 `withNativeModal` 一次都记不到」是**误判** |
+
+> ⚠️ **2026-10-18 订正（已实测）**：上面第二行「回调写法换 `withNativeModal` 记不到」的结论**不成立**。
+> 临时探针（`z-probe-mock-leak`，跑完已删）在干净环境下只装 `wx` 桩，点 `#wl-clear`
+> （`watchlist/index.vue:567` 的回调写法）→ **记到 1 条**；P2-04 的重命名（同样是回调写法）在全量跑绿的那些轮里
+> 也一直被 `wx` 桩记到。2026-10-11 那次为什么记不到？**因为同文件前一条用例刚装过 `confirmNextModal`
+> 且没有还原**，mock 一直盖着 `wx.showModal` —— 这正是 §5.7.2 说的泄漏，当时被误读成了「桩不适用」。
+> ⇒ **能用 `withNativeModal` 就用它**：两种写法都拦得到、还会还原、还能录文案。
+> 只在「必须先让 app 在一次调用里拿到固定结果、且不方便换 `wx`」时才用结果式 mock，并且**必须还原**。
 
 **选桩只看应用那一行**（`await` 还是 `success:`），别按「哪个更熟」挑。
 `withNativeModal` 多给一样东西（弹窗文案），**只在能用的那种写法上才有**。
@@ -1009,6 +1299,8 @@ P3-04（取消支）就是这么做的：先 `{confirm:false}` 断言「没清�
 | **P1-03**（申购 → pending 语义） | [`p1-trading.e2e.js`](p1-trading.e2e.js) 的 ②③③-bis④ | 把 `ai-etf/server/services/portfolio_service.py` 里那行 `"frozen_cash": float(frozen_cash + amount)` 改成 `float(frozen_cash)`（**故意不再冻结资金**）→ **重启后端**（没有 `--reload`）→ 跑 `npm run test:e2e -- p1-trading` |
 | **C1**（契约测试） | `ai-etf/tests/contract/` | 把 `PUT .../title` 那条路由注释掉 → C1 必须变红 |
 | **P2-07**（分块解码，✅ **反向验证已做**，2026-10-11） | [`p2-chat.e2e.js`](p2-chat.e2e.js) | ⚠️ **别改手写降级那套**（见下方「改哪条实现」）→ 正确改法是把 `src/utils/sse.ts` **第 79 行**的 `{ stream: true }` 去掉 → 跑 `npm run test:e2e -- p2-chat` → **P2-07 必须变红**（它就是要抓「半个汉字被切开」）<br>✅ 同一条防线在**单元测试**侧也做过（§7.1 第 ①，5 条红）|
+| **P2-08 ~ P2-11**（流式异常，✅ **反向验证已做**，2026-10-19） | [`p2-chat.e2e.js`](p2-chat.e2e.js) | 改**期望文案**（如把 P2-08 的 `AI 请求失败（HTTP 500）` 改成兜底文案）、或去掉 P2-11 恢复段的 token → 跑 `p2-chat` → 恰好这 2 条变红。**别改 `src/`**，反过来改用例的期望值就够证明断言非空 |
+| **P5-05 ~ P5-07**（测评异常分支，✅ **反向验证已做**，2026-10-19） | [`p5-register.e2e.js`](p5-register.e2e.js) | 把 P5-06 的 `urlIncludes` 改成不存在的 URL、把 P5-07 期望的 toast 文案改短 → 跑 `p5-register` → 恰好这 2 条变红。P5-06 会**只红在 hits 断言**上，这正是 `readRequestMockHits` 存在的理由 |
 
 **已验证过一次（2026-10-08）**：改 `frozen_cash` 那行 → **4 条变红**（P1-03②③ + 连带 P1-05②/P1-06②）→ `git checkout` 还原 → 重启 → 重回 18 passed。
 细节与两条副产物见 `ai-etf/docs/e2e/05-执行计划.md` 的验收标准。
@@ -1131,11 +1423,12 @@ return nativeDecoder.decode(new Uint8Array(buffer));
 | `p1-trading.e2e.js` P1-06 | 赎回拦截的 **UI 层** | 赎回页 `!position` 时表单被 `v-if` 短路，而唯一入口是持仓项 → **UI 闭合不可达**，降为 L3 接口级 |
 | ~~`p1-trading.e2e.js` P1-04~~ | ~~**整个用例**（`it.skip`）~~ | ✅ **2026-10-13 已补** —— 夹具能回填确认日了，P1-04 转正为**接口级 + UI 级各一条**，见下 |
 | `p2-chat.e2e.js` P2-01 / P2-02 | **「长回答」这条路**（真后端答 20 秒以上的问句） | 见 §5.10 / **D-07**：服务方对**生成超过约 21 秒**的慢回答返回**空流**，用例只能挑「答得快」的问句。所以「长回答能不能正确渲染」在 E2E 里是**故意不覆盖**的，别当成漏测 |
-| `p2-chat.e2e.js` 全部 | **不模拟的流式行为**（中途断流、服务方报错、超长回答分页） | §5.9 的 `streamMock` 能造，但造出来的是**我们想象的**协议，只能验证「应用怎么处理」，不能验证「服务方实际发什么」。真协议只能靠跑真实 LLM |
+| ~~`p2-chat.e2e.js` 的流式异常~~ | ~~中途断流、服务方报错~~ | ✅ **2026-10-19 已补** —— P2-08 ~ P2-11 四条（HTTP 非 2xx / error 帧 / 空流 / 网络层失败），见 §5.9.1。⚠️ 仍然只能验证**应用怎么处理**，不能验证「服务方实际发什么」；真协议只能靠跑真实 LLM |
+| `p2-chat.e2e.js` 全部 | **超长回答的分页** | 需要真实 LLM 生成足够长的一次回答（≥ D-07 的 21 秒阈值附近会直接空流），既慢又不稳定，本阶段不做 |
 | ~~`p5-register.e2e.js` P5-01~~ | ~~**登录页「还没有账户？注册」这条入口本身**~~ | ✅ **2026-10-11 已补** —— 见 **P5-04**。原先判定「补不了」是把 D-08 的范围看宽了：D-08 堵的是「从 `navigateTo` 压上去的页面往**外**跳」，而**点链接进注册页这一步本来是通的**。于是另立一条**只验「进得去」**的用例（点完看一眼注册页的内容就收工，不提交、不往外跳）。**主流程**（P5-01）仍然走深链，理由不变 |
 | `p5-register.e2e.js` P5-03 | **测评页左上角返回箭头这个动作** | 同 D-08：测评页也是 `navigateTo` 压上去的，自动化点返回箭头后一直停在测评页。改为用 `gotoPage` 收敛回设置页。**「重进直接看画像」这个考点不受影响**。<br>⭐ **但功能本身是好的**（2026-10-11 人工验证）：人手动点同一个箭头**一次就退回「我的」（= 设置页）**。⇒ 这条「没覆盖」是**自动化驱动的局限**，**不是漏测、更不是功能坏了**。写出来每次都会红且红得没意义，故不写 |
-| `p5-register.e2e.js` P5-01 | 「两次输入密码不一致」的前端拦截 | 与负例② 同属前端就地拦下的分支，一个套路，没重复做 |
-| `p5-register.e2e.js` | 问卷加载失败的分支、`loadProfileResult()` 的「API 失败 → 回退本地缓存」、重测后覆盖旧画像 | 都是异常分支；要造「后端挂了但缓存还在」的状态得反过来改坏 `wx.request`，本阶段没做 |
+| ~~`p5-register.e2e.js` P5-01~~ | ~~「两次输入密码不一致」的前端拦截~~ | ✅ **2026-10-19 已补** —— **P5-01 负例③**（断言文案 + `wx.request` 调用次数为 0 + 不跳走） |
+| ~~`p5-register.e2e.js` 异常分支~~ | ~~问卷加载失败、画像接口失败回退本地缓存、重测覆盖旧画像~~ | ✅ **2026-10-19 已补** —— **P5-05**（重测后总分变化、UI 与后端一致、缓存被覆盖）、**P5-06**（画像接口失败 → 缓存）、**P5-07**（问卷失败 → toast、停在加载态）。造状态用 [`helpers/requestMock.js`](helpers/requestMock.js)，见 §5.13 |
 | `p1` P1-01③ / `p2` | **「新用户拉开抽屉、里面 0 条会话」这条界面层断言** | **不做，因为它和已断言的是同一份数据。** `SessionDrawer.vue:127-135` 在没有搜索词时 `filteredSessions` **就是 `chatStore.sessions` 本身**（同一个数组，不是副本），而「store 会话列表为空 + 消息为空 + 后端 `total === 0`」P2 已经断言过（`p2-chat.e2e.js:366-368`，P2-01 在 `:399` 又断言一次后端）。且 `src/stores/chat.ts` **不落本地盘**（没有任何 `uni.setStorage`／缓存回填）⇒ **不存在**「store 干净、界面还留着上一个账号的会话」这种隐私场景。**store 为空则界面必为空，再加一条等于把同一条断言写两层**（违反 skill 的「分层归属」）。<br>⚠️ 要说唯一不重复的缝隙，是 **「`loadingSessions` 为 true 卡住 → 抽屉一直转圈、空状态不出现」**（`SessionDrawer.vue:90` 的空状态带 `!loading` 条件、`:153` 读 `loadingSessions`）—— 那属于**加载状态**问题，与「新用户为空」是两回事，本阶段不做。<br>🔁 2026-10-15 删掉了 P1 里那句空壳 `it.skip`（原 P1-01③ 的占位），本条就是「为什么删了也不用补」的完整答案 |
 
 ### P1-04 从「走不到」到「已覆盖」（2026-10-13）—— ⚠️ 这段容易理解错

@@ -119,6 +119,19 @@ async function readAuthKeysInApp(program) {
   }, AUTH_STORAGE_KEYS);
 }
 
+/**
+ * 在小程序内读任意一个键（`wx.getStorageSync`）。
+ *
+ * 为什么不直接用 `getKey`：两条通道看到的存储视图会不同步（见上方 `setKeysInApp` 说明），
+ * 断言「应用自己写进去的缓存」时要用应用所在的通道读，否则可能读到空串而误判。
+ */
+async function readKeyInApp(program, key) {
+  return await program.evaluate((k) => {
+    const v = wx.getStorageSync(k);
+    return v === undefined || v === null ? '' : String(v);
+  }, key);
+}
+
 /** 断言用：返回「还有哪些键没清干净」。空数组 = 全部已清空。 */
 async function findLeftoverAuthKeys(program) {
   const raw = await readAuthRaw(program);
@@ -202,6 +215,7 @@ module.exports = {
   clearAuthKeys,
   readAuthRaw,
   readAuthKeysInApp,
+  readKeyInApp,
   findLeftoverAuthKeys,
   parseJwtPayload,
   seedValidSession,

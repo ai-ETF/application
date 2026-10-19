@@ -89,6 +89,17 @@
  *   ③ `done` 帧的 `chat_id` 被落地成 `currentChatId`，且**下一次发送真的带上了它**
  * 它不需要真实 LLM（约 35 秒），跑在最后，不会污染前面几条的真实会话。
  *
+ * ───────────────────────── P2-08 ~ P2-11（流式异常，2026-10-19 补）─────────────────────────
+ *
+ * `streamChatMp` 里有四条**互不相同**的失败路径，四条都靠 streamMock 造，不花真实 token：
+ *   · HTTP 非 2xx            → finishStream({statusCode:500})        （index.vue#L230-L234）
+ *   · 服务端 error 帧        → pushChunk('data:{"type":"error",…}')  （#L190-L192 → #L243-L246）
+ *   · 空流（一个 token 没有）→ finishStream() 但不喂分块             （#L248-L251）
+ *   · 网络层失败             → failStream(program, errMsg)            （#L254-L268）
+ * 它们分不出「哪条路径」时只看文案 —— 文案相同，触发方式不同，别用一种造法验四句话。
+ * 每条都断言 `sendingMessage` 复位（#L416），否则输入区会永远禁用。
+ * 详见 application/e2e/README.md §5.9.1。
+ *
  * 2026-10-10 实测记录：见 application/e2e/README.md 的运行记录表。
  */
 
@@ -152,6 +163,31 @@ function readChat() {
   });
 }
 
+/**
+ * 等最后一条 bot 气泡**正好等于**期望文案（流式异常分支用）。
+ *
+ * 为什么不对 `sampleBotBubble` 复用：那个函数等到「非空且不再发送中」就返回，
+ * 而异常分支里气泡本来就非空（错误文案是同步写入的），用它会让断言早于状态收敛。
+ */
+async function waitForBotText(expected, { timeout = 8000 } = {}) {
+  return helpers.waitFor(
+    async () => {
+      const chat = await readChat();
+      const bot = [...chat.messages].reverse().find((m) => m.type === 'bot');
+      if (!bot || !bot.content) return false;
+      return bot.content === expected ? chat : false;
+    },
+    { timeout, label: `bot 气泡显示「${expected}」` }
+  );
+}
+
+/** 每条流式异常用例的统一起点：回首页并清空内存里的消息（不碰后端会话）。 */
+async function resetChatForStreamTest() {
+  await gotoIndex({ settle: 800 });
+  await clearChatMessages();
+  expect((await readChat()).messages).toHaveLength(0);
+}
+
 /** 把 store 的消息/当前会话清空（P2-06 用它证明「回填」而不是「内存里还留着」）。 */
 function clearChatMessages() {
   return program.evaluate(() => {
@@ -165,8 +201,13 @@ function clearChatMessages() {
 
 /** 进首页并等它渲染完（reLaunch 会重新挂载页面 → 触发 onMounted）。 */
 async function gotoIndex({ settle = 1500 } = {}) {
-  await helpers.reLaunch(program, INDEX_ROUTE);
-  await helpers.waitForPage(program, INDEX_PATH, { timeout: 15000, label: '应停在首页' });
+  // ⚠️ 走 gotoPage 而不是裸 reLaunch：它内置「发之前先静置 3 秒 + 失败退避 8 秒重试，最多 3 次」。
+  // 全量跑时本文件紧跟在别的套件后面，上一个套件结束时页面可能还在跳转窗口期 ——
+  // 此时立刻发 reLaunch 会 8 秒无回包、页面不动，导致 beforeAll 整份套件全红
+  // （2026-10-18 实测：P5 刚跑完停在注册页，P2 的 reLaunch 被吞；单跑不复现。
+  //  见 README §6.6「乙：跳没生效」）。
+  // force: true 必须留 —— 已经在首页时也要重新挂载，P2-06 靠 onMounted 重新拉历史消息。
+  await helpers.gotoPage(program, INDEX_ROUTE, INDEX_PATH, { force: true });
   await helpers.sleep(settle);
 }
 
@@ -187,6 +228,13 @@ async function sendViaUi(text) {
 
 /**
  * 采样 bot 气泡，直到「非空 且 不再发送中」。
+ *
+ * ⚠️ 返回的 `last` 是**退出那一刻的快照**，只保证「气泡和发送中标志」已就绪。
+ *    应用发完消息后还会**异步**刷新会话列表 —— `handleSend` 里
+ *    `chatStore.fetchSessions()` 没有 await（index.vue#L409），紧接着 `finally`
+ *    就把 `sendingMessage` 置 false（index.vue#L416）⇒ 本函数可能在列表响应回来
+ *    **之前**就返回。所以：**别直接断言 `last.sessions`**，要用 `helpers.waitFor`
+ *    等它收敛（2026-10-18 实证，见 P2-03 与 README §6.6 末尾「2026-10-18 再追加」）。
  *
  * @returns {{samples: Array<{t:number,len:number}>, last: any, elapsed: number,
  *            distinctLengths: number, botText: string}}
@@ -532,17 +580,45 @@ describe('P2 AI 对话核心', () => {
     expect(sample.last.messages).toHaveLength(2);
 
     // ② 会话列表变成 2 个，新会话标题来自新问题
-    expect(sample.last.sessions).toHaveLength(2);
-    expect(sample.last.sessions.map((s) => s.title)).toContain(expectedTitleOf(Q3));
+    //
+    // ⚠️ **不能直接断言 `sample.last.sessions`** —— 它是采样循环退出那一刻的快照，
+    //    而应用刷新会话列表是「发出去就不管」的：`handleSend` 里
+    //    `chatStore.fetchSessions()` 没 await（index.vue#L409），紧接着 finally 里
+    //    `sendingMessage = false`（index.vue#L416）。`sampleBotBubble` 一看到
+    //    「不在发送中」就退出，可能在列表的 HTTP 响应回来**之前**。
+    //
+    //    2026-10-18 实证（单跑 P2 连跑 4 轮里的 1 轮，5 条没通过 / 93.4s）：
+    //      · 后端日志：chat2 回答落库后，下一条 jest 侧请求直接是 P2-06 的
+    //        `getMessages(chat1)` —— P2-04 / P2-05(取消) / P2-05 **一条 HTTP 都没发**
+    //        ⇒ 它们死在 `requireChat(state.chat2)`「缺前置」，根本没走到抽屉；
+    //      · 开发者工具日志：P2-03 之后整轮只有 3 次页面跳转（P2-06 两次 Tab 切换 +
+    //        P2-07 的 gotoIndex），P2-04 ④ / P2-05(取消) 收尾的 gotoIndex 都没发生；
+    //      · ⇒ 真正的第一现场就是**本条**：`sessions` 还是旧的 1 条（本会话创建前是 1），
+    //        断言失败 → `state.chat2` 没被赋值 → 后面三条全秒挂，
+    //        P2-06 因 chat2 仍是最新而只拿到 2 条消息（≠4）。
+    //      · 概率也对得上：轮询间隔 200ms、列表刷新约几十毫秒 ⇒ 约 1/4 的轮次会踩中。
+    //
+    //    改成「等列表收敛再断言」：断言的仍是应用的真实状态，只是不再赌刷新时序。
+    const afterSend = await helpers.waitFor(
+      async () => {
+        const chat = await readChat();
+        return chat.sessions.length === 2 && chat.sessions[0].title === expectedTitleOf(Q3)
+          ? chat
+          : false;
+      },
+      { timeout: 8000, label: '发完消息后会话列表刷成 2 个（新会话排第一）' }
+    );
+    expect(afterSend.sessions).toHaveLength(2);
+    expect(afterSend.sessions.map((s) => s.title)).toContain(expectedTitleOf(Q3));
     // 新会话是「最新」的，排第一
-    expect(sample.last.sessions[0].title).toBe(expectedTitleOf(Q3));
-    expect(sample.last.currentChatId).not.toBe(state.chat1);
+    expect(afterSend.sessions[0].title).toBe(expectedTitleOf(Q3));
+    expect(afterSend.currentChatId).not.toBe(state.chat1);
 
     // ③ 交叉断言：后端 total=2
     const chats = await helpers.getChats(account.token);
     expect(chats.total).toBe(2);
     state.chat2 = chats.chats[0].id;
-    expect(state.chat2).toBe(sample.last.currentChatId);
+    expect(state.chat2).toBe(afterSend.currentChatId);
     expect(chats.chats[1].id).toBe(state.chat1);
   });
 
@@ -858,5 +934,105 @@ describe('P2 AI 对话核心', () => {
 
     // 收尾：把 store 复位，别把假 chat_id 留在这里
     await clearChatMessages();
+  });
+
+  // ─────────────────────────────────────────────────────────────
+  // P2-08 ~ P2-11 流式异常分支（2026-10-19 补）
+  //
+  // 覆盖 src/pages/index/index.vue#streamChatMp 里**四条互不相同的失败路径**，
+  // 全部靠 streamMock 造，不花真实 LLM token、不等 130 秒：
+  //   · success 里 HTTP 非 2xx          → #L230-L234
+  //   · success 里收到服务端 error 帧   → #L190-L192 记录， #L243-L246 统一 reject
+  //   · success 里一个 token 都没收到   → #L248-L251
+  //   · fail（网络层失败）              → #L254-L268
+  // 四条最终都由 handleSend 的 catch 落到展示点 `抱歉，${message}。`（#L411-L414），
+  // 并且 `sendingMessage` 必须复位（#L416）——不复位的话输入区会永远禁用，用户以为卡死。
+  //
+  // 断言用**应用展示给用户的原文**，不自己发明文案：文案变了就说明 product 行为变了，
+  // 应该让用例红、回来更新，而不是在用例里提前「对齐」成我们以为的样子。
+  // ─────────────────────────────────────────────────────────────
+  it('P2-08 流式异常①：HTTP 500 → 显示「抱歉，AI 请求失败（HTTP 500）。」，发送状态复位', async () => {
+    await resetChatForStreamTest();
+
+    await helpers.withStreamMock(program, { urlIncludes: '/api/secure-chat' }, async () => {
+      await sendViaUi('服务端错误测试');
+      await helpers.waitChunkHandler(program);
+
+      // 请求确实发出去了，且这是新会话（不带 chat_id）——否则下面的断言可能打在一个没发的请求上
+      const intercepted = await helpers.readInterceptedSse(program);
+      expect(intercepted.body.question).toBe('服务端错误测试');
+      expect(intercepted.body.chat_id).toBeUndefined();
+
+      // `success` 里 statusCode 非 2xx（index.vue#L230）→ reject
+      await helpers.finishStream(program, { statusCode: 500 });
+
+      const chat = await waitForBotText('抱歉，AI 请求失败（HTTP 500）。');
+      expect(chat.sending).toBe(false);
+    });
+  });
+
+  it('P2-09 流式异常②：中途收到服务端 error 帧 → 已渲染的内容被错误文案覆盖', async () => {
+    await resetChatForStreamTest();
+
+    await helpers.withStreamMock(program, { urlIncludes: '/api/secure-chat' }, async () => {
+      await sendViaUi('上游错误测试');
+      await helpers.waitChunkHandler(program);
+
+      // 先喂一个正常 token，证明「已经收到内容」——这样后面的覆盖才有意义。
+      await helpers.pushChunk(program, `data: {"type": "token", "content": "半截回答"}\n\n`);
+      await waitForBotText('半截回答');
+
+      // 再喂 error 帧（parseSSELine 对应 src/utils/sse.ts#L39-L41）
+      await helpers.pushChunk(
+        program,
+        `data: {"type": "error", "message": "上游模型服务不可用"}\n\n`
+      );
+      await helpers.finishStream(program);
+
+      // 关键：即使已经渲染过 token，也必须按失败处理（不能把半截回答当成功留下）
+      const chat = await waitForBotText('抱歉，上游模型服务不可用。');
+      expect(chat.sending).toBe(false);
+    });
+  });
+
+  it('P2-10 流式异常③：网络层失败 → 显示「抱歉，request:fail 模拟网络异常。」', async () => {
+    await resetChatForStreamTest();
+
+    await helpers.withStreamMock(program, { urlIncludes: '/api/secure-chat' }, async () => {
+      await sendViaUi('网络失败测试');
+      await helpers.waitChunkHandler(program);
+
+      // 走 `fail` 回调（index.vue#L254），不是 success 里的 HTTP 分支
+      await helpers.failStream(program, 'request:fail 模拟网络异常');
+
+      const chat = await waitForBotText('抱歉，request:fail 模拟网络异常。');
+      expect(chat.sending).toBe(false);
+    });
+  });
+
+  it('P2-11 流式异常④：正常结束但一个 token 都没有 → 显示「抱歉，AI 服务未返回有效回复。」，之后还能再发', async () => {
+    await resetChatForStreamTest();
+
+    await helpers.withStreamMock(program, { urlIncludes: '/api/secure-chat' }, async () => {
+      await sendViaUi('空流测试');
+      await helpers.waitChunkHandler(program);
+
+      // HTTP 200、不喂任何分块、正常收尾 → index.vue#L248-L251
+      // 这正是 D-07 在应用层的表现：真实 LLM 偶尔整段不吐字，页面必须给出可读提示。
+      await helpers.finishStream(program);
+
+      const chat = await waitForBotText('抱歉，AI 服务未返回有效回复。');
+      expect(chat.sending).toBe(false);
+    });
+
+    // 失败之后还能发下一条 —— 只断言 `sending === false` 不够，
+    // 要证明「发送这个动作本身真的还能走通」，而不是只把标志位改回去了。
+    await helpers.withStreamMock(program, { urlIncludes: '/api/secure-chat' }, async () => {
+      await sendViaUi('恢复测试');
+      await helpers.waitChunkHandler(program);
+      await helpers.pushChunk(program, `data: {"type": "token", "content": "恢复了"}\n\n`);
+      await helpers.finishStream(program);
+      await waitForBotText('恢复了');
+    });
   });
 });

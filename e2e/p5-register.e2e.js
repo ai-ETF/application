@@ -26,17 +26,18 @@
  *               `risk_profile:<userId>` 缓存，仍然直接进结果态 —— 这才能证明结果是
  *               `loadProfileResult()` 从后端取的，而不是读了本地缓存（见该用例上方说明）。
  *
- *   ❌ **没覆盖**（做得到，是**没做**，不是做不到）：
+ *   ✅ **2026-10-19 补齐的异常分支**（原先记在「没覆盖」里，理由都是「造不出状态」）：
+ *      · 「两次输入的密码不一致」→ **P5-01 负例③**（register/index.vue#L139-L142）
+ *      · 「重新测评后再提交会覆盖旧画像」→ **P5-05**（risk_service._save_profile 是 upsert）
+ *      · `loadProfileResult()` 的「API 失败 → fallback 本地缓存」→ **P5-06**
+ *        （risk-assessment/index.vue#L335-L350）
+ *      · 问卷加载失败的分支 → **P5-07**（risk-assessment/index.vue#L304-L307）
+ *        造状态用 `helpers/requestMock.js`（只拦指定 URL、其余透传），见 README §5.13。
+ *
+ *   ❌ **仍然没覆盖**（做得到，是**没做**，不是做不到）：
  *      · **测评页左上角返回箭头** —— 被 D-08 挡住的，不是漏了（见下）。
  *        （同属 D-08 的**「登录页『还没有账户？注册』入口」已于 2026-10-11 补上，
  *          见文件最后的 **P5-04** —— D-08 堵的是「从这种页面往外跳」，而那条只验「进得去」。）
- *      · 「两次输入的密码不一致」（register/index.vue#L139-L141）—— 同属前端拦截分支，
- *        和负例② 一个套路。
- *      · 问卷加载失败的分支（risk-assessment/index.vue#L304-L307 的 catch / toast）
- *      · `loadProfileResult()` 里「API 失败 → fallback 本地缓存」那一段
- *        （risk-assessment/index.vue#L335-L350）—— 要造「后端挂了但缓存还在」的状态，
- *        得动 `wx.request` 让它失败，属于异常分支，本阶段没做。
- *      · 「重新测评后再提交一次会覆盖旧画像」（后端 risk_service 是 upsert 语义）
  *
  * 【⚠️ 一个本机特有的坑，不写下来一定会再踩】
  *   设置页那个「风险画像测评」菜单项**没有 id**（settings/index.vue#L96 只有
@@ -109,7 +110,13 @@ const LOGIN_ROUTE = '/pages/login/index';
 const SETTINGS_PATH = 'pages/settings/index';
 const SETTINGS_ROUTE = '/pages/settings/index';
 const RISK_PATH = 'pages/risk-assessment/index';
+const RISK_ROUTE = '/pages/risk-assessment/index';
 const INDEX_PATH = 'pages/index/index';
+
+/** 本地画像缓存的键（复刻 src/utils/auth.ts#L177-L179 的 `<key>:<userId>`）。 */
+function riskCacheKey(userId) {
+  return `risk_profile:${userId}`;
+}
 
 /** P5-01 正例走 UI 注册时用的密码。11 位，满足前端「≥8 位」。 */
 const UI_PASSWORD = 'E2e!Pass123';
@@ -205,6 +212,32 @@ async function fillRegisterForm(page, username, password, confirm = password) {
   await nameEl.input(username);
   await passEl.input(password);
   await confirmEl.input(confirm);
+}
+
+/**
+ * 逐题作答并提交。
+ *
+ * @param {'first'|'last'} pick 每题选第 1 个还是最后 1 个选项。
+ *   · P5-02 用 'first'（实测 total_score=1.0）
+ *   · P5-05 用 'last'（实测 total_score=3.0）—— 两者不同，才能证明「重测覆盖了旧画像」，
+ *     而不是「又存了一份一样的」。选项的 risk_score 见 supabase/seed.sql 的问卷 JSON。
+ */
+async function answerAllQuestions(risk, total, pick) {
+  for (let n = 1; n <= total; n += 1) {
+    await helpers.waitFor(
+      async () => {
+        const el = await risk.$('.progress-count');
+        if (!el) return false;
+        return (await textOf(el)) === `${n} / ${total}`;
+      },
+      { timeout: 6000, label: `第 ${n} 题的进度计数显示为「${n} / ${total}」` }
+    );
+    const options = await risk.$$('#risk-option');
+    // 至少两个选项，「选第一个 vs 选最后一个」才有区分度
+    expect(options.length).toBeGreaterThan(1);
+    await options[pick === 'last' ? options.length - 1 : 0].tap();
+    await (await risk.$('#risk-next')).tap();
+  }
 }
 
 /** 进注册页，并断言起点是干净的（没有上一步残留的错文案）。 */
@@ -423,6 +456,32 @@ describe('P5 注册 + 风险测评', () => {
   });
 
   // ─────────────────────────────────────────────────────────────────
+  // P5-01 负例③ 两次输入的密码不一致 → 前端就地拦下
+  //
+  // 依据：register/index.vue#L139-L142 —— `password !== confirmPassword` 时直接把文案
+  // 写进 `errorMessage` 并 return，**根本没有走到 `register()`**。
+  // 所以断言和负例②一样分两层：①文案对；②一个请求都没发。
+  it('P5-01 负例③ 两次密码不一致 → 显示「两次输入的密码不一致」，且一个请求也不发', async () => {
+    const page = await enterRegisterPage();
+    // 两个密码都 ≥8 位（先过掉「密码至少需要 8 位」），但内容不同
+    await fillRegisterForm(page, freshUsername(), UI_PASSWORD, `${UI_PASSWORD}X`);
+
+    await helpers.withNativeCall(program, 'request', async () => {
+      await (await page.$('#reg-submit')).tap();
+
+      expect(await readRegisterError(page)).toBe('两次输入的密码不一致');
+
+      // 必须在 withNativeCall 窗口**里面**读（外面记录已被还原清掉）
+      const calls = await helpers.readNativeCalls(program, 'request');
+      expect(calls).toEqual([]);
+    });
+
+    // 不该跳走
+    await helpers.sleep(800);
+    expect((await pageNow()).path).toBe(REGISTER_PATH);
+  });
+
+  // ─────────────────────────────────────────────────────────────────
   // P5-02 风险测评（首次）→ 提交 → 画像
   //
   // ⚠️ 期望值全部**从后端现取**，不在用例里写死（全选 A 实测得到 conservative / 保守型 /
@@ -614,6 +673,159 @@ describe('P5 注册 + 风险测评', () => {
     const count = await textOf(await risk.$('.progress-count'));
     expect(count).toMatch(/^1 \/ \d+$/);
     expect(await (await risk.$('#risk-next')).attribute('class')).toContain('btn--disabled');
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // P5-05 重新测评并提交 → 覆盖旧画像（本次新补）
+  //
+  // 钉的是后端 risk_service._save_profile 的「存在则覆盖」语义
+  // （server/services/risk_service.py#L457-L500：先查 is_active 画像，有就 update）。
+  // 只断言「提交成功」是不够的 —— 一个「每次 insert 新行、查询取最早一条」的实现
+  // 也会让前面两条用例全绿，用户却永远看到旧画像。
+  //
+  // 顺序依赖：紧跟在 P5-03③「点重新测评」之后（此时页面在问卷态第一题）。
+  // 单独 `-t` 跑这条会红，前置检查里会说明原因，那是缺前置、不是产品缺陷。
+  it('P5-05 重新测评提交后覆盖旧画像：后端总分变化，UI 与后端一致', async () => {
+    const risk = await pageNow();
+    if (risk.path !== RISK_PATH) {
+      throw new Error(
+        `P5-05 需要一个前置：上一条（P5-03③）应当把你留在测评页，实际在 ${risk.path}。` +
+          '请整文件跑 `npm run test:e2e -- p5-register`。'
+      );
+    }
+    if (!(await has(risk, '.question-card'))) {
+      throw new Error('P5-05 需要一个前置：页面应处于问卷态（P5-03③ 点过「重新测评」）。');
+    }
+
+    // 旧画像（P5-02 全选 A 建出来的）
+    const before = await helpers.getRiskProfile(riskAccount.token);
+    expect(before.hasProfile).toBe(true);
+    expect(before.profile).toBeTruthy();
+
+    const questionnaire = await helpers.getRiskQuestionnaire(riskAccount.token);
+    const total = questionnaire.questions.length;
+    expect(total).toBeGreaterThan(0);
+
+    // 这次每题都选**最后一个**（risk_score=3），与 P5-02 的「每题选第一个」（1）不同
+    await answerAllQuestions(risk, total, 'last');
+
+    await helpers.waitFor(
+      async () => await has(risk, '.result-section'),
+      { timeout: 15000, label: '重新测评提交后切到结果态（出现 .result-section）' }
+    );
+
+    const after = await helpers.getRiskProfile(riskAccount.token);
+    expect(after.hasProfile).toBe(true);
+    expect(after.profile).toBeTruthy();
+
+    // 核心断言：总分真的变了 —— 证明是 update 而不是「又存了一份、读的是旧的」
+    expect(after.profile.total_score).not.toBe(before.profile.total_score);
+
+    // UI 显示的是新画像（徽章 == 后端 risk_label）
+    expect(await textOf(await risk.$('.result-level-text'))).toBe(after.profile.risk_label);
+
+    // 本地缓存也被覆盖了（handleSubmit 里 setStorageSync，risk-assessment/index.vue#L421）
+    // 两条通道都写，读的时候用小程序内通道 —— 见 helpers/storage.js 的「双通道不同步」说明。
+    const cachedJson = await helpers.readKeyInApp(program, riskCacheKey(riskAccount.userId));
+    expect(cachedJson).toBeTruthy();
+    expect(JSON.parse(cachedJson).risk_label).toBe(after.profile.risk_label);
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // P5-06 画像接口失败 → 回退本地缓存（本次新补）
+  //
+  // 依据：risk-assessment/index.vue#L335-L350 —— getProfile() 抛错后，
+  // `uni.getStorageSync(riskProfileStorageKey)` 有值就渲染结果态，没有才去拉问卷。
+  //
+  // 怎么证明「用的是缓存」而不是「后端其实成功了」：
+  //   ① 用 requestMock 把 `/api/risk/profile` 打成网络失败，并断言这条请求**确实发生**；
+  //   ② 接口失败后仍进结果态，且徽章 == 我们写进缓存的画像的 risk_label。
+  //   —— 后端那条路已经被我们掐断了，结果态只可能来自缓存。
+  it('P5-06 画像接口失败 → 回退本地缓存进结果态', async () => {
+    const truth = await helpers.getRiskProfile(riskAccount.token);
+    expect(truth.hasProfile).toBe(true);
+
+    // 把后端真值写进本地缓存（两条通道都写，避免读到哪条通道不同步）
+    const cacheKey = riskCacheKey(riskAccount.userId);
+    const cachedJson = JSON.stringify(truth.profile);
+    await helpers.setKey(program, cacheKey, cachedJson);
+    await helpers.setKeysInApp(program, [[cacheKey, cachedJson]]);
+
+    await helpers.withRequestMock(
+      program,
+      [{ urlIncludes: '/api/risk/profile', action: 'fail', errMsg: 'request:fail 模拟断网' }],
+      async () => {
+        const risk = await helpers.gotoPage(program, RISK_ROUTE, RISK_PATH, { force: true });
+
+        await helpers.waitFor(
+          async () => await has(risk, '.result-section'),
+          { timeout: 10000, label: '画像接口失败后仍进结果态（只能来自本地缓存）' }
+        );
+        expect(await has(risk, '.question-card')).toBe(false);
+        expect(await textOf(await risk.$('.result-level-text'))).toBe(truth.profile.risk_label);
+
+        // 这条请求真的发出去过、且被我们打成了 fail —— 否则「后端成功」也能让上面全绿
+        const hits = await helpers.readRequestMockHits(program);
+        expect(
+          hits.some((h) => h.url.includes('/api/risk/profile') && h.action === 'fail')
+        ).toBe(true);
+      }
+    );
+  });
+
+  // ─────────────────────────────────────────────────────────────────
+  // P5-07 问卷加载失败 → toast 提示，页面停在加载态（本次新补）
+  //
+  // 依据：risk-assessment/index.vue#L304-L307 —— loadQuestionnaire 的 catch 只
+  // `uni.showToast('加载问卷失败，请重试')`，**没有改 pageState**，所以页面停在 loading。
+  //
+  // 怎么造这个状态：让画像接口成功返回「未测评」（has_profile=false），
+  // 问卷接口返回 500。前端就会走「去拉问卷 → 失败 → toast」这条支路。
+  it('P5-07 问卷加载失败 → 提示「加载问卷失败，请重试」，停在加载态', async () => {
+    await helpers.withRequestMock(
+      program,
+      [
+        {
+          urlIncludes: '/api/risk/profile',
+          action: 'respond',
+          statusCode: 200,
+          data: { has_profile: false, profile: null },
+        },
+        {
+          urlIncludes: '/api/risk/questionnaire',
+          action: 'respond',
+          statusCode: 500,
+          data: { detail: '模拟问卷服务故障' },
+        },
+      ],
+      async () => {
+        await helpers.withNativeCall(program, 'showToast', async () => {
+          const risk = await helpers.gotoPage(program, RISK_ROUTE, RISK_PATH, { force: true });
+
+          const toast = await helpers.waitFor(
+            async () => {
+              const calls = await helpers.readNativeCalls(program, 'showToast');
+              return calls.find((c) => c.title === '加载问卷失败，请重试') || false;
+            },
+            { timeout: 8000, label: '出现「加载问卷失败，请重试」提示' }
+          );
+          expect(toast.icon).toBe('none');
+
+          // 不进问卷态、也不误进结果态；停在加载态（catch 没改 pageState）
+          expect(await has(risk, '.question-card')).toBe(false);
+          expect(await has(risk, '.result-section')).toBe(false);
+          expect(await has(risk, '.loading-text')).toBe(true);
+          expect(await textOf(await risk.$('.header-title'))).toBe('加载中...');
+
+          // 两条请求都真的发过：画像先成功、问卷再失败
+          const hits = await helpers.readRequestMockHits(program);
+          expect(hits.some((h) => h.url.includes('/api/risk/profile'))).toBe(true);
+          expect(
+            hits.some((h) => h.url.includes('/api/risk/questionnaire') && h.statusCode === 500)
+          ).toBe(true);
+        });
+      }
+    );
   });
 
   // ─────────────────────────────────────────────────────────────────

@@ -303,12 +303,15 @@ describe('P4 鉴权失效路径', () => {
     // 丢掉。2026-10-09 实测：不加这一行，4 次里红 1 次，表征是「停在 pages/login/index」
     // —— 即 §5.3 那类「导航被丢弃」，跟鉴权旗标无关（测试发导航走的是原生 wx.reLaunch，
     // 根本不经过应用那套逻辑）。加完之后 4 次里 0 红。
-    await helpers.waitForStablePage(program, { stableMs: 2500 });
-    await helpers.reLaunch(program, LOGIN_ROUTE);
-    await helpers.waitForPage(program, LOGIN_PATH, {
-      timeout: 5000,
-      label: '对照组起点：应先落到登录页',
-    });
+    //
+    // ⚠️ 2026-10-18 再加固（同一招用在 P2 的 gotoIndex 上已验证）：
+    //   全量跑时**套件顺序并不固定**（jest 按历史耗时排序）。那轮顺序是
+    //   p1 → p2 → p3 → **p5 → p4** → hello，P5 刚结束停在 `pages/register/index`，
+    //   这里第一发 `reLaunch(LOGIN)` 被吞 → 等登录页 5s 超时（实际停在 register）。
+    //   单跑 P4 两轮均 7/7 通过 ⇒ 与产品无关，就是「套件边界上导航被丢」。
+    //   改用 gotoPage：内置「发之前先静置 3 秒 + 最多 3 次、退避 8 秒重试」。
+    //   （不用 force：只要落在登录页即可，不要求重新挂载。）
+    await helpers.gotoPage(program, LOGIN_ROUTE, LOGIN_PATH);
 
     // 造一个本地完全有效的会话
     const seed = await helpers.seedValidSession(program, {
@@ -456,7 +459,17 @@ describe('P4 鉴权失效路径', () => {
       // handleLogout（settings/index.vue#L202）：
       //   showModal → 不是 confirm 就 return → await logout() → reLaunch('/pages/login/index')
       await logoutBtn.tap();
-      modalCalls = await helpers.readNativeModalCalls(program);
+      // ⚠️ 点完**不能立刻读一次就断言**：`tap()` 只负责把触摸事件交出去，
+      //    应用侧的处理函数可能晚几毫秒才跑。2026-10-18 全量跑实测过这一帧：
+      //    读数为 0，但后端随后收到了 `POST /api/secure-chat/logout 200` ——
+      //    处理函数其实跑了，是「读早了」，不是「弹窗没弹」。
+      modalCalls = await helpers.waitFor(
+        async () => {
+          const calls = await helpers.readNativeModalCalls(program);
+          return calls.length > 0 ? calls : false;
+        },
+        { timeout: 5000, label: '点「退出登录」后弹出确认框' }
+      );
     });
 
     // 预期①：确认框的文案（settings/index.vue#L203-L207）
@@ -523,7 +536,14 @@ describe('P4 鉴权失效路径', () => {
     let modalCalls = [];
     await helpers.withNativeModal(program, { confirm: false }, async () => {
       await logoutBtn.tap();
-      modalCalls = await helpers.readNativeModalCalls(program);
+      // 与 P4-03 同款：等弹窗记录出现，别在「点击刚交出去」的那一帧就读（见上面那条注释）。
+      modalCalls = await helpers.waitFor(
+        async () => {
+          const calls = await helpers.readNativeModalCalls(program);
+          return calls.length > 0 ? calls : false;
+        },
+        { timeout: 5000, label: '点「退出登录」后弹出确认框' }
+      );
     });
 
     // 对照组（不能省）：弹窗**确实弹了**。

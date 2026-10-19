@@ -222,6 +222,27 @@ async function finishStream(program, { statusCode = 200 } = {}) {
 }
 
 /**
+ * 让这次流式请求在**网络层失败**：调应用传进来的 `fail`（而不是 `success`）。
+ *
+ * 对应应用里的分支：`streamChatMp` 的 `fail: (err) => … reject(new Error(err.errMsg …))`
+ * （src/pages/index/index.vue#L254-L268）。与 `finishStream({statusCode: 500})` 不同 ——
+ * 那条走的是 `success` 里「HTTP 非 2xx」的分支（#L230-L234），两条代码路径别混。
+ *
+ * ⚠️ `errMsg` 原样进断言：应用把它直接展示给用户（`抱歉，${errMsg}。`），
+ * 所以这里传什么，用例就该断言什么，别让用例自己编一个更有意义的值。
+ */
+async function failStream(program, errMsg = 'request:fail 模拟网络异常') {
+  return program.evaluate((msg) => {
+    const o = wx.__e2eSseOpts;
+    if (!o) return 'no-intercepted-request';
+    const res = { errMsg: msg };
+    if (typeof o.fail === 'function') o.fail(res);
+    if (typeof o.complete === 'function') o.complete(res);
+    return 'ok';
+  }, errMsg);
+}
+
+/**
  * 常用组合：等应用注册好分块回调 → 喂一整条流 → 收尾。
  *
  * `waitFor` 用不了（这里等的是 evaluate 里的状态），所以用轮询。
@@ -249,4 +270,5 @@ module.exports = {
   pushChunk,
   pushChunkSplitMidChar,
   finishStream,
+  failStream,
 };

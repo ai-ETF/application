@@ -643,8 +643,12 @@ describe('P3 行情 + 自选', () => {
       const deleteBtn = await listPage.$('.swipe-delete');
       expect(deleteBtn).not.toBeNull();
 
-      helpers.confirmNextModal(program, { confirm: true }); // 桩 showModal 自动确认
-      await deleteBtn.tap();
+      // 2026-10-18：改用 withNativeModal（换 wx.showModal、finally 还原）。
+      // 原写法 confirmNextModal 装的是**持久** mock（运行时就是 uni.showModal = mockFn），
+      // 不还原会盖住后面 P2/P4 的 wx 桩，制造一场假失败（README §5.7.2 / 6.6）。
+      await helpers.withNativeModal(program, { confirm: true }, async () => {
+        await deleteBtn.tap();
+      });
 
       await waitFor(
         async () => {
@@ -698,8 +702,10 @@ describe('P3 行情 + 自选', () => {
     it('① tap 清空（桩 showModal 确认）', async () => {
       const clearBtn = await page.$('#wl-clear');
       expect(clearBtn).not.toBeNull();
-      helpers.confirmNextModal(program, { confirm: true });
-      await clearBtn.tap();
+      // 2026-10-18：改用 withNativeModal（自还原），原因同 P3-03③。
+      await helpers.withNativeModal(program, { confirm: true }, async () => {
+        await clearBtn.tap();
+      });
       // 等「服务端真的清空了」再往下，不要固定 sleep：
       // handleClearAll 是 showModal 回调里 `await clearFollow()` 之后才更新本地列表
       // （watchlist/index.vue#L566-L578），固定 sleep 会偶发抢在请求回来之前读 DOM
@@ -785,14 +791,13 @@ describe('P3 行情 + 自选', () => {
       const clearBtn = await page.$('#wl-clear');
       expect(clearBtn).not.toBeNull();
 
-      // ⚠️ 桩法与其他两条「取消支」**不一样**，这是被实跑逼出来的：
-      // handleClearAll 是**回调写法**（watchlist/index.vue#L567 的 `success:`），
-      // 实测 `withNativeModal`（换 `wx.showModal`）拦不到它 ——
-      // 换完之后 readNativeModalCalls 是空的，2026-10-11 实跑确认。
-      // 回调写法要用 `confirmNextModal`（= 结果式 mock 掉 uni 自己的 showModal），
-      // 这也是 uniMock.js 里两套桩并存的真正原因。代价：这条路读不到弹窗文案。
-      helpers.confirmNextModal(program, { confirm: false });
-      await clearBtn.tap();
+      // 2026-10-18 订正：2026-10-11 那条「withNativeModal 拦不到回调写法」是**错的**。
+      // 当时前面 P3-03 的 confirmNextModal 已经泄漏，uni.showModal 被 mock 顶掉，
+      // wx 桩根本没被走到（对照实验见 README §6.6/§6.8）。桩里的 p.success(res)
+      // 会同步喂给 `success:` 回调，两种写法都拦得到。
+      await helpers.withNativeModal(program, { confirm: false }, async () => {
+        await clearBtn.tap();
+      });
       // 等它去「犯错」：真清了的话服务端和本地列表都会立刻变
       // （handleClearAll 是回调里 `await clearFollow()` 之后才更新，见 watchlist/index.vue#L571-L576）
       await sleep(2500);
@@ -813,8 +818,9 @@ describe('P3 行情 + 自选', () => {
       //    并被 `if (res.confirm)` 挡住；否则可能只是「桩没送到 → 什么也没发生」，
       //    那样这条用例测的就不是取消分支，而是一句永远为真的废话。
       const clearBtnAgain = await page.$('#wl-clear');
-      helpers.confirmNextModal(program, { confirm: true });
-      await clearBtnAgain.tap();
+      await helpers.withNativeModal(program, { confirm: true }, async () => {
+        await clearBtnAgain.tap();
+      });
       await waitFor(
         async () => {
           const r = await requestJson('GET', '/api/watchlist/list', { token: account.token });
