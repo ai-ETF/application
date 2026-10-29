@@ -104,6 +104,8 @@ interface EtfDetailRaw {
 }
 
 interface NavHistoryRaw {
+  /** 净值所属基金代码。当前后端尚未提供；详情页据此防止混用其他基金净值。 */
+  fund_code?: string;
   date: string;
   nav?: number | null;
   accumulated_nav?: number | null;
