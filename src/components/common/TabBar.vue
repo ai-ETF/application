@@ -16,6 +16,8 @@
  * - 文字颜色：激活 #000000，未激活 #999999
  */
 <template>
+  <!-- 与固定栏等高，在各页面（包括聊天输入区下方）保留实际占位。 -->
+  <view class="tab-bar-slot">
   <view class="tab-bar">
     <!-- 问小E Tab -->
     <view
@@ -64,6 +66,7 @@
       </view>
       <text class="tab-label">我的</text>
     </view>
+  </view>
   </view>
 </template>
 
@@ -135,15 +138,31 @@ function handleTabClick(tab: ActiveTab) {
 </script>
 
 <style lang="scss" scoped>
+$tab-bar-height: 120rpx;
+
+/* 占位与固定栏使用同一高度，安全区只在组件内部处理。 */
+.tab-bar-slot {
+  flex-shrink: 0;
+  height: $tab-bar-height;
+  height: calc(#{$tab-bar-height} + env(safe-area-inset-bottom));
+}
+
 /* ==================== 导航栏容器 ==================== */
 .tab-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   align-items: center;
   width: 100%;
   max-width: 100%;
-  height: 120rpx;
+  height: $tab-bar-height;
+  height: calc(#{$tab-bar-height} + env(safe-area-inset-bottom));
+  padding-bottom: env(safe-area-inset-bottom);
   background-color: $color-bg-primary;
   box-sizing: border-box;
 }

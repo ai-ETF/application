@@ -18,7 +18,7 @@
  */
 
 <template>
-  <view class="page-container" :style="{ minHeight: windowHeight + 'px' }">
+  <view class="page-container" :style="{ height: windowHeight + 'px' }">
     <scroll-view class="page-scroll" scroll-y>
       <!-- ==================== 用户信息头部 ==================== -->
       <view class="user-header" :style="{ paddingTop: statusBarHeight + 'px' }">
@@ -342,11 +342,14 @@ function handleFeedbackClick() {
 .page-container {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   background-color: $color-bg-primary;
 }
 
 .page-scroll {
   flex: 1;
+  height: 0;
   min-height: 0;
 }
 

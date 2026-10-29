@@ -19,7 +19,7 @@
  */
 
 <template>
-  <view class="page-container" :style="{ minHeight: windowHeight + 'px' }">
+  <view class="page-container" :style="{ height: windowHeight + 'px' }">
     <!-- ==================== 顶部 Tab 切换 ==================== -->
     <view class="top-tab" :style="{ paddingTop: statusBarHeight + 'px' }">
       <view
@@ -640,11 +640,14 @@ async function fetchPortfolio() {
 .page-container {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   background-color: $color-bg-primary;
 }
 
 /* ==================== 顶部 Tab 样式 ==================== */
 .top-tab {
+  flex-shrink: 0;
   display: flex;
   height: 96rpx;
   background-color: $color-bg-primary;
@@ -756,6 +759,8 @@ async function fetchPortfolio() {
 /* ==================== ETF 列表样式 ==================== */
 .list-scroll {
   flex: 1;
+  height: 0;
+  min-height: 0;
 }
 
 .etf-list {
