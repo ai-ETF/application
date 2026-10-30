@@ -7,7 +7,8 @@
  */
 
 <template>
-  <view class="top-bar" :style="{ paddingTop: statusBarHeight + 'px' }">
+  <!-- 状态栏高度 + 10px 额外留白，避免按钮紧贴屏幕顶部 -->
+  <view class="top-bar" :style="{ paddingTop: statusBarHeight + 10 + 'px' }">
     <!-- 左侧：菜单按钮 + 品牌区域 -->
     <view class="left-area">
       <!-- 菜单按钮 — 毛玻璃卡牌风格 -->

@@ -17,27 +17,25 @@
  */
 <template>
   <view class="position-item" @tap="handleClick">
-    <!-- 顶部：基金名称 + 更新日期 -->
+    <!-- 顶部：基金名称（左） + 代码/更新时间（右上角，纵向排列） -->
     <view class="item-header">
       <text class="fund-name">{{ fundName }}</text>
-      <text class="fund-code">{{ fundCode }}</text>
-      <text class="update-date">{{ updateDate }}</text>
+      <view class="fund-meta">
+        <text class="fund-code">{{ fundCode }}</text>
+        <text class="update-date">{{ updateDate }}</text>
+      </view>
     </view>
 
-    <!-- 数据区域：三列布局 -->
-    <view class="item-data">
-      <!-- 持仓金额/份额 -->
-      <view class="data-section">
-        <text class="data-value">{{ formatHoldingAmount }}</text>
-        <text class="data-sub">{{ formatHoldingShares }}</text>
-        <text class="data-label">持仓金额/份额</text>
+    <!-- 数据区：左列市值/份额，右列盈亏 -->
+    <view class="item-body">
+      <view class="body-left">
+        <text class="market-value">{{ formatHoldingAmount }}</text>
+        <text class="shares">{{ formatHoldingShares }}</text>
       </view>
-
       <!-- 后端返回的持仓盈亏；不把它重复标成“昨日收益”。 -->
-      <view class="data-section">
-        <text class="data-value" :class="cumulativeColorClass">{{ formatCumulativeProfit }}</text>
-        <text class="data-sub" :class="cumulativeColorClass">{{ formatCumulativePercent }}</text>
-        <text class="data-label">持仓盈亏</text>
+      <view class="body-right">
+        <text class="profit-value" :class="cumulativeColorClass">{{ formatCumulativeProfit }}</text>
+        <text class="profit-percent" :class="cumulativeColorClass">{{ formatCumulativePercent }}</text>
       </view>
     </view>
   </view>
@@ -84,15 +82,15 @@ const emit = defineEmits<{
 
 // ==================== 计算属性 ====================
 
-/** 格式化持仓金额：¥ 50,000 */
+/** 格式化持仓金额：¥ 59,538 */
 const formatHoldingAmount = computed(() => {
   if (props.marketValueAvailable === false) return '--';
-  return `¥ ${formatMoney(props.holdingAmount, 0, false)}`;
+  return formatMoney(props.holdingAmount, 0, true);
 });
 
-/** 格式化持有份额：45,678.90 份 */
+/** 格式化持有份额：59,538.17 份 */
 const formatHoldingShares = computed(() => {
-  return `${formatMoney(props.holdingShares, 2, false)} 份`;
+  return `${formatMoney(props.holdingShares, 2, false)}份`;
 });
 
 /** 格式化昨日收益金额（带正负号） */
@@ -142,80 +140,89 @@ function handleClick() {
 
 <style lang="scss" scoped>
 .position-item {
-  display: flex;
-  flex-direction: column;
-  gap: 24rpx;
-  background-color: #FFFFFF;
-  border-radius: 24rpx;
-  padding: 32rpx;
-  transition: all 0.2s ease;
+  @include card($radius: $radius-md);
+  padding: $spacing-base;
+  box-shadow: $shadow-sm;
+  transition: all $transition-fast $ease-in-out;
 
   &:active {
     opacity: 0.9;
-    transform: scale(1.01);
   }
 }
 
+/* 顶部：基金名称 + 右侧元信息 */
 .item-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+  @include flex(row, flex-start, flex-start);
 }
 
 .fund-name {
-  font-size: 30rpx;
-  font-weight: 700;
-  color: #000000;
-}
-
-.fund-code {
-  margin-left: 12rpx;
-  font-size: 22rpx;
-  color: #999999;
-}
-
-.update-date {
-  font-size: 24rpx;
-  color: #999999;
-}
-
-.item-data {
-  display: flex;
-  justify-content: space-around;
-  align-items: flex-start;
-  margin-top: 16rpx;
-}
-
-.data-section {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 12rpx;
   flex: 1;
+  min-width: 0;
+  font-size: $font-size-base;
+  font-weight: $font-weight-semibold;
+  color: $color-text-primary;
+  line-height: 1.4;
 }
 
-.data-value {
-  font-size: 28rpx;
-  font-weight: 700;
-  color: #2D1E16;
+.fund-meta {
+  @include flex(column, center, flex-end);
+  margin-left: $spacing-md;
+  /* 小程序适配：gap 替换为 margin */
+  .fund-code + .update-date {
+    margin-top: $spacing-xs;
+  }
 }
 
-.data-sub {
-  font-size: 24rpx;
-  color: #2D1E16;
+.fund-code,
+.update-date {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
 }
 
-.data-label {
-  font-size: 20rpx;
-  color: #999999;
+/* 数据区：左列市值/份额，右列盈亏 */
+.item-body {
+  @include flex(row, space-between, flex-end);
+  margin-top: $spacing-md;
 }
 
-/* 涨跌颜色 */
+.body-left {
+  @include flex(column, flex-start, flex-start);
+}
+
+.market-value {
+  font-size: $font-size-2xl;
+  font-weight: $font-weight-bold;
+  color: $color-text-primary;
+  line-height: 1.2;
+}
+
+.shares {
+  margin-top: $spacing-xs;
+  font-size: $font-size-sm;
+  color: $color-text-primary;
+}
+
+.body-right {
+  @include flex(column, flex-start, flex-end);
+}
+
+.profit-value {
+  font-size: $font-size-2xl;
+  font-weight: $font-weight-bold;
+  line-height: 1.2;
+}
+
+.profit-percent {
+  margin-top: $spacing-xs;
+  font-size: $font-size-sm;
+}
+
+/* 涨跌颜色：红涨绿跌，与全局语义色一致 */
 .profit {
-  color: #FF4444;
+  color: $color-up;
 }
 
 .loss {
-  color: #00AA44;
+  color: $color-down;
 }
 </style>

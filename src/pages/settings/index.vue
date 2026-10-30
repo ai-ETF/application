@@ -18,10 +18,10 @@
  */
 
 <template>
-  <view class="page-container" :style="{ minHeight: windowHeight + 'px' }">
+  <view class="page-container">
     <scroll-view class="page-scroll" scroll-y>
       <!-- ==================== 用户信息头部 ==================== -->
-      <view class="user-header" :style="{ paddingTop: statusBarHeight + 'px' }">
+      <view class="user-header" :style="{ paddingTop: statusBarHeight + 10 + 'px' }">
         <view class="header-content">
           <!-- 左侧：头像 + 昵称 -->
           <view class="user-info-section">
@@ -156,7 +156,7 @@ import { getAccountSummary } from '@/api';
 import { useSystemInfo } from '@/composables/useSystemInfo';
 
 /** 窗口高度 + 状态栏高度，用于页面全屏适配 */
-const { windowHeight, statusBarHeight } = useSystemInfo();
+const { statusBarHeight } = useSystemInfo();
 
 // ==================== Store ====================
 
@@ -340,13 +340,17 @@ function handleFeedbackClick() {
 <style lang="scss" scoped>
 /* ==================== 页面容器 ==================== */
 .page-container {
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  box-sizing: border-box;
   background-color: $color-bg-primary;
 }
 
 .page-scroll {
   flex: 1;
+  height: 0;
   min-height: 0;
 }
 

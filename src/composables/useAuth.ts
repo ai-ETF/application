@@ -1,6 +1,6 @@
 /** 认证业务逻辑：对接 FastAPI + Supabase Auth，并维护一小时本地会话。 */
 import { ref } from 'vue';
-import { API_BASE } from '@/config';
+import { request } from '@/utils/request';
 import { useAuthStore } from '@/stores/auth';
 import { useChatStore } from '@/stores/chat';
 import { useUserStore } from '@/stores/user';
@@ -106,15 +106,14 @@ export function useAuth() {
     errorMessage.value = '';
     try {
       const email = accountToBackendEmail(account);
-      const res = await uni.request({
-        url: `${API_BASE}/api/secure-chat/login`,
+      const res = await request<Partial<AuthTokenResponse> & Record<string, any>>({
+        url: '/api/secure-chat/login',
         method: 'POST',
-        header: { 'Content-Type': 'application/json' },
         data: { email, password },
         timeout: 15000,
       });
-      const data = parseResponseData(res.data) as Partial<AuthTokenResponse> & Record<string, any>;
-      if (res.statusCode === 200 && data.access_token && data.user_id) {
+      const data = parseResponseData(res.data);
+      if (data.access_token && data.user_id) {
         const user = buildUser(account, data.user_id);
         resetUserMemory();
         authStore.setSession(data.access_token, user, data.expires_in);
@@ -125,7 +124,10 @@ export function useAuth() {
       errorMessage.value = translateError(responseMessage(data), res.statusCode);
       return { error: errorMessage.value };
     } catch (error: any) {
-      errorMessage.value = translateNetworkError(error);
+      // request() 对非 2xx 会抛出带 statusCode 的 HTTP 错误；无 statusCode 则为网络错误
+      errorMessage.value = error?.statusCode
+        ? translateError(error.message || '', error.statusCode)
+        : translateNetworkError(error);
       return { error: errorMessage.value };
     } finally {
       loading.value = false;
@@ -143,15 +145,14 @@ export function useAuth() {
     errorMessage.value = '';
     try {
       const email = accountToBackendEmail(username);
-      const res = await uni.request({
-        url: `${API_BASE}/api/secure-chat/register`,
+      const res = await request<RegisterResponse & Record<string, any>>({
+        url: '/api/secure-chat/register',
         method: 'POST',
-        header: { 'Content-Type': 'application/json' },
         data: { email, password },
         timeout: 15000,
       });
-      const data = parseResponseData(res.data) as RegisterResponse & Record<string, any>;
-      if (res.statusCode === 200 && data.success) {
+      const data = parseResponseData(res.data);
+      if (data.success) {
         if (data.access_token && data.user_id) {
           const user = buildUser(username, data.user_id);
           resetUserMemory();
@@ -165,7 +166,9 @@ export function useAuth() {
       errorMessage.value = translateError(responseMessage(data), res.statusCode);
       return { error: errorMessage.value };
     } catch (error: any) {
-      errorMessage.value = translateNetworkError(error);
+      errorMessage.value = error?.statusCode
+        ? translateError(error.message || '', error.statusCode)
+        : translateNetworkError(error);
       return { error: errorMessage.value };
     } finally {
       loading.value = false;
@@ -178,10 +181,10 @@ export function useAuth() {
     const token = authStore.session?.token || '';
     try {
       if (token) {
-        await uni.request({
-          url: `${API_BASE}/api/secure-chat/logout`,
+        // token 由 request 层自动从会话注入
+        await request({
+          url: '/api/secure-chat/logout',
           method: 'POST',
-          header: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           timeout: 10000,
         });
       }

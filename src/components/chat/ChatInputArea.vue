@@ -45,6 +45,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import SvgIcon from '@/components/common/SvgIcon.vue';
+import { useUiStore } from '@/stores/ui';
 
 interface Props {
   placeholder?: string;
@@ -62,7 +63,15 @@ const emit = defineEmits<{
   (e: 'plus'): void;
 }>();
 
-const inputText = ref<string>('');
+const uiStore = useUiStore();
+
+// 输入草稿持久化到 UI Store，切换 Tab 后再回来不丢失未发送的文字
+const inputText = computed({
+  get: () => uiStore.chatDraft,
+  set: (value: string) => {
+    uiStore.chatDraft = value;
+  },
+});
 const isFocused = ref<boolean>(false);
 
 const canSend = computed(() => {

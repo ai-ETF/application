@@ -15,6 +15,7 @@
 
 import { request } from '@/utils/request';
 import { API_BASE } from '@/config';
+import { formatDateTime } from '@/utils/format';
 
 // ==================== 关键词规则 ====================
 
@@ -155,7 +156,7 @@ function formatQuoteResponse(data: any): string {
 
   const sign = d.change >= 0 ? '+' : '';
   const dir = d.change_pct >= 0 ? '📈' : '📉';
-  const time = d.update_time ? d.update_time.replace('+08:00', '').trim() : '--';
+  const time = formatDateTime(d.update_time, '--');
 
   let text = `【${d.name}（${d.code}）】${dir}\n\n`;
   text += `最新价：${d.price.toFixed(3)}\n`;

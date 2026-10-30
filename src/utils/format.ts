@@ -119,6 +119,24 @@ export function formatDate(date: string | number, format: string = 'M 月 D 日'
 }
 
 /**
+ * 格式化日期时间
+ * @description 将 ISO 时间字符串（如 2026-10-12T16:05:01.823642+00:00）或时间戳
+ * 格式化为简洁的 'YYYY-MM-DD HH:mm'，自动转为本地时区；空值/非法值返回 fallback。
+ * @param {string | number | null | undefined} date - 日期时间字符串或时间戳
+ * @param {string} fallback - 空值/非法值时的兜底文案，默认 '--'
+ * @returns {string} 格式化后的日期时间字符串
+ * @example formatDateTime('2026-10-12T16:05:01.823642+00:00') => "2026-10-12 00:05"
+ */
+export function formatDateTime(
+  date: string | number | null | undefined,
+  fallback: string = '--',
+): string {
+  if (date == null || date === '') return fallback;
+  const result = formatDate(date, 'YYYY-MM-DD HH:mm');
+  return result || fallback;
+}
+
+/**
  * 生成唯一 ID
  * @description 生成简单的唯一标识符，用于消息等场景
  * @returns {string} 唯一 ID 字符串
