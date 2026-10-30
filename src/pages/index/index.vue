@@ -54,7 +54,7 @@ import ChatMessageList from '@/components/chat/ChatMessageList.vue';
 import ChatInputArea from '@/components/chat/ChatInputArea.vue';
 import SessionDrawer from '@/components/chat/SessionDrawer.vue';
 import { useChatStore } from '@/stores/chat';
-import { API_BASE } from '@/config';
+import { API_BASE, USE_MOCK } from '@/config';
 import { expireAuthAndRedirect, getAuthSession, isAuthSessionValid } from '@/utils/auth';
 
 const chatStore = useChatStore();
@@ -118,6 +118,11 @@ function checkFetchUnauthorized(response: Response): Response {
  * @returns Promise<string> - 返回 chat_id
  */
 async function streamChat(question: string, onToken: (token: string) => void): Promise<string> {
+  // 开发环境（mock 模式）不模拟 AI 流式聊天，直接给出友好提示，由 handleSend 捕获展示
+  if (USE_MOCK) {
+    throw new Error('开发环境暂不支持 AI 聊天');
+  }
+
   // user_id 由后端从 JWT 中获取，请求体只传接口定义的字段。
   const requestBody: { question: string; chat_id?: string } = { question };
 

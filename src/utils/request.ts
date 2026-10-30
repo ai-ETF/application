@@ -2,11 +2,29 @@
  * ============================================
  * 统一 HTTP 请求模块
  * ============================================
- * 封装 uni.request，自动注入 token、处理 401 过期等全局逻辑
+ * 封装 uni.request，自动注入 token、处理 401 过期等全局逻辑，
+ * 并在 mock 模式（USE_MOCK）下拦截请求返回本地假数据。
  */
 
-import { API_BASE } from '@/config';
+import { API_BASE, USE_MOCK } from '@/config';
+import { mockRequest } from '@/mock';
 import { expireAuthAndRedirect, getAuthSession, isAuthSessionValid } from '@/utils/auth';
+
+/**
+ * secure-chat 的登录/注册/登出：其 401 属于正常业务结果（如密码错误），
+ * 而非「会话过期」，不应触发自动跳转登录页。
+ */
+function isSecureChatAuthEndpoint(url: string): boolean {
+  return /(?:^|\/)api\/secure-chat\/(login|register|logout)/.test(url);
+}
+
+/**
+ * 无需前置登录态即可访问的接口：行情 + 登录/注册/登出。
+ * 登录/注册本身就要在未登录时调用；登出是尽力而为，不应在会话已失效时触发跳转。
+ */
+function isPublicRequest(url: string): boolean {
+  return /(?:^|\/)api\/market\//.test(url) || isSecureChatAuthEndpoint(url);
+}
 
 /**
  * 清除登录态并跳转到登录页
@@ -29,14 +47,18 @@ function getHttpErrorMessage(data: unknown, statusCode: number): string {
 
 /**
  * 统一请求
- * @description 比 uni.request 多了自动注入 token、401 拦截
+ * @description 比 uni.request 多了自动注入 token、401 拦截，以及 mock 模式拦截
  */
 export function request<T = any>(options: UniApp.RequestOptions): Promise<UniApp.RequestSuccessCallbackResult & { data: T }> {
   const session = getAuthSession();
-  // 行情接口是公开数据，未登录也允许浏览/搜索；自选、组合交易等个人接口仍必须携带 JWT。
   const requestUrl = String(options.url || '');
-  const isPublicMarketRequest = /(?:^|\/)api\/market\//.test(requestUrl);
-  if (!isPublicMarketRequest && !isAuthSessionValid(session)) {
+
+  // mock 模式：命中本地假数据直接返回，不发起真实网络请求，也不经过鉴权
+  const mock = mockRequest<T>(requestUrl, options.method || 'GET', options.data);
+  if (mock) return mock;
+
+  // 行情与登录/注册/登出为公开接口，未登录也允许访问；其余个人接口仍必须携带 JWT。
+  if (!isPublicRequest(requestUrl) && !isAuthSessionValid(session)) {
     expireAuthAndRedirect();
     return Promise.reject(new Error('登录状态已过期，请重新登录'));
   }
@@ -57,8 +79,14 @@ export function request<T = any>(options: UniApp.RequestOptions): Promise<UniApp
       url: options.url.startsWith('http') ? options.url : `${API_BASE}${options.url}`,
       header,
       success(res) {
-        // 401 → token 过期
+        // 401 → token 过期；但登录/注册/登出的 401 是业务结果，直接透出错误
         if (res.statusCode === 401) {
+          if (isSecureChatAuthEndpoint(requestUrl)) {
+            const error = new Error(getHttpErrorMessage(res.data, 401)) as Error & { statusCode?: number };
+            error.statusCode = 401;
+            reject(error);
+            return;
+          }
           handleUnauthorized();
           reject(new Error('未授权，请重新登录'));
           return;
