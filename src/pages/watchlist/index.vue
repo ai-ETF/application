@@ -281,7 +281,7 @@ import PositionItem from '@/components/business/PositionItem.vue';
 import { useWatchlistStore } from '@/stores/watchlist';
 import { useAuthStore } from '@/stores/auth';
 import { useUiStore } from '@/stores/ui';
-import { getAccountSummary, getPositions } from '@/api/modules/portfolio';
+import { getPortfolioOverview } from '@/api/modules/portfolio';
 import { useSystemInfo } from '@/composables/useSystemInfo';
 import { formatDateTime, formatMoney, formatPercent } from '@/utils/format';
 
@@ -625,8 +625,11 @@ async function fetchPortfolio() {
   const userId = authStore.user?.id;
   positionLoading.value = true; positionError.value = '';
   try {
-    const [account, positions] = await Promise.all([getAccountSummary(), getPositions()]);
+    // 账户与持仓由后端一次返回、只计算一次持仓；页面只发一个请求。
+    const overview = await getPortfolioOverview();
     if (requestId !== portfolioRequestId || !authStore.isAuthenticated || authStore.user?.id !== userId) return;
+    const account = overview.account;
+    const positions = overview.positions;
     cashAmount.value = Number(account.cash || 0);
     frozenAmount.value = Number(account.frozen_cash || 0);
     positionAmount.value = Number(account.position_value || 0);

@@ -36,6 +36,12 @@ export interface PositionListResponse {
   total_position_value: number;
 }
 
+/** 持仓页概况：账户与持仓一次返回，后端只计算一次持仓。 */
+export interface PortfolioOverview {
+  account: AccountSummary;
+  positions: PositionListResponse;
+}
+
 export interface OrderResult {
   fund_code: string;
   fund_name: string;
@@ -93,6 +99,12 @@ export function getPositions() {
   return get<PositionListResponse>('/api/portfolio/positions', {
     data: { include_quote: true },
   }).then(res => res.data);
+}
+
+/** 持仓页加载：一个请求同时拿账户概况和持仓列表（避免并行两次、后端重复计算）。 */
+export function getPortfolioOverview() {
+  console.log('[API] 查询持仓页概况');
+  return get<PortfolioOverview>('/api/portfolio/overview').then(res => res.data);
 }
 
 export function applyPurchase(fundCode: string, amount: number) {
