@@ -2,7 +2,11 @@
  * ============================================
  * 底部导航栏组件 TabBar.vue
  * ============================================
- * 固定在页面底部的导航栏， * 设计稿参考：各页面的 NavBar 组件
+ * 页面底部导航栏，作为各页面 flex 布局的底部子节点。
+ *
+ * 固定逻辑：页面根节点定高（100vh）+ overflow:hidden，
+ * 仅内部 scroll-view 滚动，因此本组件无需 position: fixed，
+ * 作为普通底部 flex 子节点（flex-shrink: 0）即可天然固定在底部。
  *
  * Tab 列表：
  * - 问小E（search 图标）
@@ -11,13 +15,11 @@
  * - 我的（users 图标）
  *
  * 设计风格：
- * - 背景色： #F9F6F0（与页面背景一致）
- * - 激活状态：图标有灰色圆形背景 (#E8E8E8)
- * - 文字颜色：激活 #000000，未激活 #999999
+ * - 背景色： $color-bg-primary（与页面背景一致）
+ * - 激活状态：图标有圆形背景（$color-brand-bg）
+ * - 文字颜色：激活 $color-text-primary，未激活 $color-text-tertiary
  */
 <template>
-  <!-- 与固定栏等高，在各页面（包括聊天输入区下方）保留实际占位。 -->
-  <view class="tab-bar-slot">
   <view class="tab-bar">
     <!-- 问小E Tab -->
     <view
@@ -37,7 +39,7 @@
       :class="{ 'tab-item--active': activeKey === 'watchlist' }"
       @tap="handleTabClick('watchlist')"
     >
-      <view class="tab-icon-bg" :class="{ 'tab-icon-bg--active': activeKey === 'watchlist' }">
+      <view class="tab-icon" :class="{ 'tab-icon--active': activeKey === 'watchlist' }">
         <SvgIcon name="bookmark" size="40rpx" :color="activeKey === 'watchlist' ? 'active' : 'secondary'" />
       </view>
       <text class="tab-label">自选</text>
@@ -61,12 +63,11 @@
       :class="{ 'tab-item--active': activeKey === 'settings' }"
       @tap="handleTabClick('settings')"
     >
-      <view class="tab-icon-bg" :class="{ 'tab-icon-bg--active': activeKey === 'settings' }">
+      <view class="tab-icon" :class="{ 'tab-icon--active': activeKey === 'settings' }">
         <SvgIcon name="user" size="40rpx" :color="activeKey === 'settings' ? 'active' : 'secondary'" />
       </view>
       <text class="tab-label">我的</text>
     </view>
-  </view>
   </view>
 </template>
 
@@ -138,22 +139,9 @@ function handleTabClick(tab: ActiveTab) {
 </script>
 
 <style lang="scss" scoped>
-$tab-bar-height: 120rpx;
-
-/* 占位与固定栏使用同一高度，安全区只在组件内部处理。 */
-.tab-bar-slot {
-  flex-shrink: 0;
-  height: $tab-bar-height;
-  height: calc(#{$tab-bar-height} + env(safe-area-inset-bottom));
-}
-
 /* ==================== 导航栏容器 ==================== */
+/* 作为页面 flex 布局底部子节点（非 fixed），安全区仅在组件内部处理。 */
 .tab-bar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 50;
   flex-shrink: 0;
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -179,9 +167,8 @@ $tab-bar-height: 120rpx;
 }
 
 /* 小程序不支持 gap，使用相邻选择器实现图标与文字的间距 */
-.tab-icon + .tab-label,
-.tab-icon-bg + .tab-label {
-  margin-top: $spacing-sm;
+.tab-icon + .tab-label {
+  margin-top: $spacing-xs;
 }
 
 /* Tab 标签文字 */
@@ -201,25 +188,21 @@ $tab-bar-height: 120rpx;
 }
 
 /* ==================== Tab 图标 ==================== */
-/* 所有图标统一固定尺寸容器，保证四个 Tab 图标中心对齐 */
-.tab-icon,
-.tab-icon-bg {
+/* 统一固定尺寸容器，保证四个 Tab 图标中心对齐，激活时带圆形底 */
+.tab-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 80rpx;
   height: 80rpx;
   flex-shrink: 0;
-}
-
-/* 带圆形背景的图标 */
-.tab-icon-bg {
   border-radius: $radius-circle;
   background-color: transparent;
+  transition: background-color $transition-fast ease;
 }
 
-/* 激活状态下的图标背景 */
-.tab-icon-bg--active {
+/* 激活状态下图标带圆形背景 */
+.tab-icon--active {
   background-color: $color-brand-bg;
 }
 </style>

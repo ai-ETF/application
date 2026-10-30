@@ -137,7 +137,7 @@ $radius-circle: 50%;       // 圆形
  */
 $page-width: 750rpx;       // 页面宽度（基于 375pt 设计稿）
 $status-bar-height: 88rpx; // 状态栏高度（40pt）
-$nav-bar-height: 100rpx;   // 底部导航栏高度
+$tab-bar-height: 140rpx;   // 底部 TabBar 高度（含上下呼吸空间，避免文字下边缘被裁）
 
 /**
  * 卡片尺寸

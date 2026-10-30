@@ -32,7 +32,7 @@
             <view class="summary-stat"><text class="stat-label">单位净值</text><text class="summary-number" :class="{ 'number-empty': !latestNavItem }">{{ latestNav }}</text><text class="stat-sub">净值日期 {{ latestNavDate }}</text></view>
           </view>
           <text class="update">{{ canLoadMarket ? '行情日期' : '净值日期' }}：{{ canLoadMarket ? quote?.data_date || latestKline?.date || '暂无数据' : latestNavDate }}</text>
-          <text v-if="canLoadMarket" class="update">行情更新时间：{{ formatDateTime(quote?.update_time) }}</text>
+          <text v-if="canLoadMarket" class="update">行情更新时间：{{ formatDateTime(quote?.update_time, '暂无数据') }}</text>
           <text v-if="marketError" class="data-note request-warning">{{ marketError }}</text>
           <view v-if="quote || latestKline" class="intraday-grid">
             <view v-for="field in quoteFields" :key="field.label"><text class="mini-value">{{ formatNumber(field.value, 3) }}</text><text class="stat-label">{{ field.label }}</text></view>
@@ -132,6 +132,7 @@ import type { EtfDetailRaw, KlineItemRaw, SpotQuoteRaw } from '@/api/types';
 import { useWatchlistStore } from '@/stores/watchlist';
 import { useAuthStore } from '@/stores/auth';
 import { TRADEABLE_FUND_CODES } from '@/config/portfolio';
+import { formatDateTime } from '@/utils/format';
 
 const code = ref('');
 const detail = ref<EtfDetailRaw | null>(null);
@@ -506,10 +507,6 @@ function formatNumber(value: number | null | undefined, digits: number): string 
 function formatSignedPercent(value: number | null | undefined): string {
   if (finiteNumber(value) == null) return '暂无数据';
   return `${Number(value) >= 0 ? '+' : ''}${Number(value).toFixed(2)}%`;
-}
-
-function formatDateTime(value?: string) {
-  return value ? value.replace('T', ' ').replace('+08:00', '') : '暂无数据';
 }
 
 function getHttpStatus(errorValue: unknown): number | null {

@@ -10,7 +10,7 @@
         <view class="top"><text>{{ item.fund_name }}</text><text :class="item.direction === 'buy' ? 'buy' : 'sell'">{{ item.direction === 'buy' ? '申购' : '赎回' }}</text></view>
         <text class="code">{{ item.fund_code }}</text>
         <view class="row"><text>金额 {{ format(item.amount) }} 元</text><text>份额 {{ Number(item.quantity).toFixed(4) }}</text></view>
-        <view class="row muted"><text>净值 {{ Number(item.price).toFixed(4) }} · 费用 {{ format(item.fee) }}</text><text>{{ formatDate(item.trade_time) }}</text></view>
+        <view class="row muted"><text>净值 {{ Number(item.price).toFixed(4) }} · 费用 {{ format(item.fee) }}</text><text>{{ formatDateTime(item.trade_time) }}</text></view>
         <text class="confirmed">已确认</text>
       </view>
     </scroll-view>
@@ -22,6 +22,7 @@ import { ref } from 'vue';
 import { onShow } from '@dcloudio/uni-app';
 import { getTradeFlow, type TradeFlowItem } from '@/api/modules/portfolio';
 import { useAuthStore } from '@/stores/auth';
+import { formatDateTime } from '@/utils/format';
 
 const items = ref<TradeFlowItem[]>([]);
 const loading = ref(true);
@@ -53,7 +54,6 @@ async function load() {
 }
 
 function format(value: number) { return Number(value).toFixed(2); }
-function formatDate(value: string) { return value ? value.replace('T', ' ').replace('+08:00', '') : '--'; }
 function back() { uni.navigateBack({ delta: 1 }); }
 </script>
 

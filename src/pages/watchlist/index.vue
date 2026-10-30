@@ -19,9 +19,9 @@
  */
 
 <template>
-  <view class="page-container" :style="{ height: windowHeight + 'px' }">
+  <view class="page-container">
     <!-- ==================== 顶部 Tab 切换 ==================== -->
-    <view class="top-tab" :style="{ paddingTop: statusBarHeight + 'px' }">
+    <view class="top-tab" :style="{ paddingTop: statusBarHeight + 10 + 'px' }">
       <view
         class="tab-item"
         :class="{ 'tab-item--active': activeTab === 'follow' }"
@@ -190,51 +190,41 @@
         <template v-else>
         <!-- 资产总览卡片 -->
         <view class="asset-card">
+          <!-- 卡片标题 + 交易记录入口 -->
           <view class="card-header">
             <view class="card-title-row">
               <SvgIcon name="briefcase" size="36rpx" color="primary" />
               <text class="card-title">账户资产</text>
             </view>
-            <view class="header-actions">
             <view class="action-btn" @tap="goTrades">
               <text class="action-text">交易记录</text>
             </view>
-            </view>
           </view>
 
-          <!-- 金额展示 -->
+          <!-- 总资产 -->
           <view class="amount-section">
-            <text class="amount-value">¥ {{ totalAmount.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }}</text>
+            <text class="amount-value">{{ totalAmountText }}</text>
             <text class="amount-label">总资产</text>
           </view>
 
+          <!-- 收益组：后端仅提供累计盈亏与收益率，不区分“最新/累计”口径 -->
+          <view class="earnings-group">
+            <text class="earnings-group-label">累计收益</text>
+            <text class="earnings-value" :class="totalPnl >= 0 ? 'profit' : 'loss'">{{ totalPnlText }}</text>
+            <text class="earnings-percent" :class="totalReturnRate >= 0 ? 'profit' : 'loss'">{{ totalReturnRateText }}</text>
+          </view>
+
+          <view class="asset-divider"></view>
+
+          <!-- 可用现金 / 持仓市值 -->
           <view class="asset-grid">
-            <view><text>{{ cashAmount.toFixed(2) }}</text><text>可用现金</text></view>
-            <view><text>{{ frozenAmount.toFixed(2) }}</text><text>冻结资金</text></view>
-            <view><text>{{ positionAmount.toFixed(2) }}</text><text>持仓市值</text></view>
+            <view><text>{{ cashText }}</text><text>可用现金</text></view>
+            <view><text>{{ positionValueText }}</text><text>持仓市值</text></view>
           </view>
 
-          <!-- 更新时间行 -->
+          <!-- 更新时间 -->
           <view class="update-section">
-            <SvgIcon name="clock" size="24rpx" color="tertiary" />
             <text class="update-text">数据更新于 {{ updateDate }}</text>
-          </view>
-
-          <!-- 后端只提供总盈亏与总收益率，不把同一字段重复冒充为不同口径。 -->
-          <view class="earnings-row">
-            <view class="earnings-item">
-              <text class="earnings-value" :class="totalPnl >= 0 ? 'profit' : 'loss'">
-                {{ totalPnl >= 0 ? '+' : '' }}{{ totalPnl.toFixed(2) }}
-              </text>
-              <text class="earnings-label">总盈亏（元）</text>
-            </view>
-            <view class="earnings-divider"></view>
-            <view class="earnings-item">
-              <text class="earnings-value" :class="totalReturnRate >= 0 ? 'profit' : 'loss'">
-                {{ totalReturnRate >= 0 ? '+' : '' }}{{ totalReturnRate.toFixed(2) }}%
-              </text>
-              <text class="earnings-label">总收益率</text>
-            </view>
           </view>
         </view>
 
@@ -290,24 +280,37 @@ import SvgIcon from '@/components/common/SvgIcon.vue';
 import PositionItem from '@/components/business/PositionItem.vue';
 import { useWatchlistStore } from '@/stores/watchlist';
 import { useAuthStore } from '@/stores/auth';
+import { useUiStore } from '@/stores/ui';
 import { getAccountSummary, getPositions } from '@/api/modules/portfolio';
 import { useSystemInfo } from '@/composables/useSystemInfo';
+import { formatDateTime, formatMoney, formatPercent } from '@/utils/format';
 
-const { statusBarHeight, windowHeight } = useSystemInfo();
+const { statusBarHeight } = useSystemInfo();
 import type { WatchlistItem, HoldingItem } from '@/types/models.d';
 import type { SearchResultRaw } from '@/api/types';
 
 // ==================== Store ====================
 
 const watchlistStore = useWatchlistStore();
+const uiStore = useUiStore();
 
 // ==================== 状态定义 ====================
 
-/** 当前激活的 Tab：follow(关注) | position(持仓) */
-const activeTab = ref<'follow' | 'position'>('follow');
+/** 当前激活的 Tab：follow(关注) | position(持仓)，持久化避免切 Tab 丢失 */
+const activeTab = computed<'follow' | 'position'>({
+  get: () => uiStore.watchlistTab,
+  set: (value) => {
+    uiStore.watchlistTab = value;
+  },
+});
 
-/** 搜索关键词（本地输入态，驱动 store 搜索） */
-const searchKeyword = ref<string>('');
+/** 搜索关键词（本地输入态，驱动 store 搜索），持久化避免切 Tab 丢失 */
+const searchKeyword = computed<string>({
+  get: () => uiStore.watchlistSearch,
+  set: (value) => {
+    uiStore.watchlistSearch = value;
+  },
+});
 
 /** 搜索框是否聚焦（小程序不支持 :focus-within，使用 JS 状态替代） */
 const searchFocused = ref<boolean>(false);
@@ -340,6 +343,22 @@ const updateDate = ref<string>('--');
 /** 后端账户概况返回的总盈亏与总收益率。 */
 const totalPnl = ref(0);
 const totalReturnRate = ref(0);
+
+// ==================== 资产卡片格式化 ====================
+
+/** 总资产文案（带 ¥ 与千分位，保留两位小数） */
+const totalAmountText = computed(() => formatMoney(totalAmount.value, 2, true));
+/** 可用现金文案 */
+const cashText = computed(() => formatMoney(cashAmount.value, 2));
+/** 持仓市值文案 */
+const positionValueText = computed(() => formatMoney(positionAmount.value, 2));
+/** 累计收益金额文案（带正负号） */
+const totalPnlText = computed(() => {
+  const sign = totalPnl.value > 0 ? '+' : '';
+  return `${sign}${formatMoney(Math.abs(totalPnl.value), 2)}`;
+});
+/** 累计收益率文案（带正负号与 %） */
+const totalReturnRateText = computed(() => formatPercent(totalReturnRate.value, true, 2));
 
 // ==================== 计算属性 ====================
 
@@ -384,6 +403,12 @@ watch(searchKeyword, (kw) => {
 
 onLoad((query) => {
   if (query?.tab === 'position') activeTab.value = 'position';
+
+  // 关键词已持久化但组件重建，debounce watch 不会重新触发，需手动恢复搜索
+  const keyword = searchKeyword.value.trim();
+  if (keyword) {
+    watchlistStore.searchEtf(keyword);
+  }
 });
 
 /**
@@ -621,7 +646,7 @@ async function fetchPortfolio() {
       dailyProfitPercent: Number(item.pnl_pct || 0),
       totalProfit: Number(item.pnl || 0),
       totalProfitPercent: Number(item.pnl_pct || 0),
-      updateDate: item.updated_at || '--',
+      updateDate: formatDateTime(item.updated_at),
     }));
     updateDate.value = new Date().toLocaleString('zh-CN');
   } catch (e) {
@@ -638,6 +663,7 @@ async function fetchPortfolio() {
 <style lang="scss" scoped>
 /* ==================== 页面容器 ==================== */
 .page-container {
+  height: 100vh;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -973,19 +999,11 @@ async function fetchPortfolio() {
   color: $color-text-primary;
 }
 
-.header-actions {
-  @include flex(row, flex-end, center);
-  /* 小程序适配：gap 替换为 margin */
-  .action-btn + .action-btn {
-    margin-left: $spacing-sm;
-  }
-}
-
 .action-btn {
   @include flex(row, center, center);
-  padding: $spacing-sm $spacing-md;
+  padding: $spacing-xs $spacing-md;
   border: 2rpx solid $color-border;
-  border-radius: $radius-base;
+  border-radius: $radius-full;
   transition: all $transition-fast $ease-in-out;
   /* 小程序适配：gap 替换为 margin */
   .svg-icon + .action-text {
@@ -1017,7 +1035,7 @@ async function fetchPortfolio() {
   margin-top: $spacing-xs;
 }
 
-.asset-grid { display:flex; margin-top:$spacing-base; padding-top:$spacing-base; border-top:2rpx solid $color-border-light; }
+.asset-grid { display:flex; }
 .asset-grid view { flex:1; display:flex; flex-direction:column; align-items:center; }
 .asset-grid view + view { border-left:2rpx solid $color-border-light; }
 .asset-grid text:first-child { font-size:$font-size-base; font-weight:$font-weight-semibold; color:$color-text-primary; }
@@ -1032,10 +1050,6 @@ async function fetchPortfolio() {
 .update-section {
   @include flex(row, center, center);
   margin-top: $spacing-sm;
-  /* 小程序适配：gap 替换为 margin */
-  .svg-icon + .update-text {
-    margin-left: $spacing-xs;
-  }
 }
 
 .update-text {
@@ -1043,37 +1057,27 @@ async function fetchPortfolio() {
   color: $color-text-tertiary;
 }
 
-/* 收益统计行 */
-.earnings-row {
-  @include flex(row, space-around, stretch);
-  margin-top: $spacing-base;
-  padding-top: $spacing-base;
-  border-top: 2rpx solid $color-border-light;
-}
-
-.earnings-item {
+/* 收益组：标签在上，金额与收益率在下，居中 */
+.earnings-group {
   @include flex(column, center, center);
-  flex: 1;
-  /* 小程序适配：gap 替换为 margin */
-  .earnings-value + .earnings-percent,
-  .earnings-percent + .earnings-label {
-    margin-top: $spacing-xs;
-  }
+  margin-top: $spacing-base;
 }
 
-.earnings-divider {
-  width: 2rpx;
-  background-color: $color-border-light;
-  margin: $spacing-xs 0;
+.earnings-group-label {
+  font-size: $font-size-xs;
+  color: $color-text-tertiary;
 }
 
 .earnings-value {
+  margin-top: $spacing-xs;
   font-size: $font-size-lg;
   font-weight: $font-weight-bold;
 }
 
 .earnings-percent {
+  margin-top: $spacing-xs;
   font-size: $font-size-sm;
+  font-weight: $font-weight-medium;
 }
 
 .earnings-value.profit,
@@ -1086,9 +1090,10 @@ async function fetchPortfolio() {
   color: $color-down;
 }
 
-.earnings-label {
-  font-size: $font-size-xs;
-  color: $color-text-tertiary;
+/* 收益组与资金行之间的分割线 */
+.asset-divider {
+  @include divider;
+  margin: $spacing-base 0;
 }
 
 /* ==================== 持仓列表样式 ==================== */
